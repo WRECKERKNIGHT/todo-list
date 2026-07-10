@@ -1,38 +1,68 @@
-import React, { useRef, useEffect } from 'react';
+import React from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../theme/ThemeContext';
-import { FadeInView } from '../components/MedievalUI';
+import Animated, {
+  FadeIn, FadeInDown, FadeInUp, FadeInRight,
+  useSharedValue, useAnimatedStyle, withSpring,
+} from 'react-native-reanimated';
 
 const serifFont = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 
-function AchievementCard({ achievement, index }) {
-  const { theme } = useTheme();
+function AchievementCard({ achievement, index, theme }) {
   const isUnlocked = achievement.unlocked;
+  const scale = useSharedValue(1);
+  const s = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
   return (
-    <FadeInView delay={index * 60} style={[styles.achievementCard, { backgroundColor: isUnlocked ? theme.colors.surface : theme.colors.surfaceLight, borderLeftColor: isUnlocked ? theme.colors.primary : theme.colors.border }]}>
-      <View style={[styles.achievementIconWrap, { backgroundColor: isUnlocked ? theme.colors.primary + '12' : theme.colors.surfaceHighlight }]}>
-        <Ionicons name={achievement.icon} size={22} color={isUnlocked ? theme.colors.primary : theme.colors.textMuted} />
-        {isUnlocked && (
-          <View style={[styles.unlockedBadge, { backgroundColor: theme.colors.success }]}>
-            <Ionicons name="checkmark" size={8} color="#FFF" />
-          </View>
-        )}
+    <Animated.View
+      entering={FadeInDown.duration(400).delay(index * 50).springify().damping(16).stiffness(110)}
+      style={s}
+    >
+      <View style={[styles.achievementCard, { backgroundColor: isUnlocked ? theme.colors.surface : theme.colors.surfaceLight, borderLeftColor: isUnlocked ? theme.colors.primary : theme.colors.border }]}>
+        <View style={[styles.achievementIconWrap, { backgroundColor: isUnlocked ? theme.colors.primary + '12' : theme.colors.surfaceHighlight }]}>
+          <Ionicons name={achievement.icon} size={22} color={isUnlocked ? theme.colors.primary : theme.colors.textMuted} />
+          {isUnlocked && (
+            <View style={[styles.unlockedBadge, { backgroundColor: theme.colors.success, borderColor: isUnlocked ? theme.colors.surface : theme.colors.surfaceLight }]}>
+              <Ionicons name="checkmark" size={8} color="#FFF" />
+            </View>
+          )}
+        </View>
+        <View style={styles.achievementInfo}>
+          <Text style={[styles.achievementTitle, { color: isUnlocked ? theme.colors.text : theme.colors.textMuted }]}>{achievement.title}</Text>
+          <Text style={[styles.achievementDesc, { color: theme.colors.textSecondary }]}>{achievement.desc}</Text>
+          {isUnlocked && achievement.unlockedAt && (
+            <Text style={[styles.unlockedDate, { color: theme.colors.primary }]}>
+              {new Date(achievement.unlockedAt).toLocaleDateString()}
+            </Text>
+          )}
+        </View>
       </View>
-      <View style={styles.achievementInfo}>
-        <Text style={[styles.achievementTitle, { color: isUnlocked ? theme.colors.text : theme.colors.textMuted }]}>{achievement.title}</Text>
-        <Text style={[styles.achievementDesc, { color: theme.colors.textSecondary }]}>{achievement.desc}</Text>
-        {isUnlocked && achievement.unlockedAt && (
-          <Text style={[styles.unlockedDate, { color: theme.colors.primary }]}>
-            {new Date(achievement.unlockedAt).toLocaleDateString()}
-          </Text>
-        )}
+    </Animated.View>
+  );
+}
+
+function ProgressBar({ count, total, theme }) {
+  const fillSv = useSharedValue(0);
+
+  React.useEffect(() => {
+    fillSv.value = withSpring(total > 0 ? (count / total) * 100 : 0, { damping: 18, stiffness: 60 });
+  }, []);
+
+  const fillStyle = useAnimatedStyle(() => ({
+    width: fillSv.value.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }),
+  }));
+
+  return (
+    <Animated.View entering={FadeIn.duration(500).delay(200).springify().damping(16)} style={[styles.progressCard, { backgroundColor: theme.colors.surface }]}>
+      <View style={[styles.progressBg, { backgroundColor: theme.colors.surfaceLight }]}>
+        <Animated.View style={[styles.progressBar, { backgroundColor: theme.colors.primary }, fillStyle]} />
       </View>
-    </FadeInView>
+      <Text style={[styles.progressText, { color: theme.colors.textMuted }]}>{total - count} more to unlock all</Text>
+    </Animated.View>
   );
 }
 
@@ -53,25 +83,24 @@ export default function AchievementsScreen() {
           </View>
         </View>
 
-        <FadeInView style={[styles.progressCard, { backgroundColor: theme.colors.surface }]}>
-          <View style={[styles.progressBg, { backgroundColor: theme.colors.surfaceLight }]}>
-            <View style={[styles.progressBar, { width: `${(unlockedCount / totalCount) * 100}%`, backgroundColor: theme.colors.primary }]} />
-          </View>
-          <Text style={[styles.progressText, { color: theme.colors.textMuted }]}>{totalCount - unlockedCount} more to unlock all</Text>
-        </FadeInView>
+        <ProgressBar count={unlockedCount} total={totalCount} theme={theme} />
 
         {unlockedCount > 0 && (
           <>
-            <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>Unlocked</Text>
+            <Animated.View entering={FadeIn.duration(400).delay(250)}>
+              <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>Unlocked</Text>
+            </Animated.View>
             {state.achievements.filter(a => a.unlocked).map((achievement, i) => (
-              <AchievementCard key={achievement.id} achievement={achievement} index={i} />
+              <AchievementCard key={achievement.id} achievement={achievement} index={i} theme={theme} />
             ))}
           </>
         )}
 
-        <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>Locked</Text>
+        <Animated.View entering={FadeIn.duration(400).delay(300)}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>Locked</Text>
+        </Animated.View>
         {state.achievements.filter(a => !a.unlocked).map((achievement, i) => (
-          <AchievementCard key={achievement.id} achievement={achievement} index={i} />
+          <AchievementCard key={achievement.id} achievement={achievement} index={i} theme={theme} />
         ))}
       </ScrollView>
     </View>

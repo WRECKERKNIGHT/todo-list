@@ -1,13 +1,17 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Animated, Easing, Platform, Dimensions,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../theme/ThemeContext';
 import { getMonthDays, getMonthName, formatDate } from '../utils/dateHelpers';
-import { FadeInView } from '../components/MedievalUI';
+import Animated, {
+  FadeIn, FadeInDown, FadeInUp,
+  useSharedValue, useAnimatedStyle, withSpring, withTiming,
+  Layout, SlideInRight, SlideInLeft,
+} from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 
 const { width } = Dimensions.get('window');
 const DAY_SIZE = (width - 48) / 7;
@@ -18,11 +22,21 @@ function CalendarDay({ day, isToday, hasEvents, isSelected, onPress, disabled })
   const { theme } = useTheme();
   if (!day) return <View style={{ width: DAY_SIZE, height: DAY_SIZE }} />;
 
+  const scale = useSharedValue(1);
+
+  const s = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
   return (
-    <TouchableOpacity onPress={() => onPress(day)} style={[styles.dayCell, isSelected && { backgroundColor: theme.colors.primary }, isToday && !isSelected && { borderColor: theme.colors.primary + '40', borderWidth: 1, borderRadius: DAY_SIZE / 2 }]} activeOpacity={0.6}>
-      <Text style={[styles.dayText, { color: theme.colors.text }, isToday && !isSelected && { color: theme.colors.primary, fontWeight: '700' }, isSelected && { color: '#FFF', fontWeight: '600' }, disabled && { color: 'transparent' }]}>{day}</Text>
-      {hasEvents && !isSelected && <View style={[styles.dayDot, { backgroundColor: theme.colors.primary }]} />}
-    </TouchableOpacity>
+    <Animated.View style={[{ width: DAY_SIZE, height: DAY_SIZE }, s]}>
+      <TouchableOpacity
+        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); scale.value = withSpring(0.85, { damping: 10, stiffness: 400 }); setTimeout(() => { scale.value = withSpring(1, { damping: 10, stiffness: 400 }); }, 100); onPress(day); }}
+        activeOpacity={1}
+        style={[styles.dayCell, isSelected && { backgroundColor: theme.colors.primary }, isToday && !isSelected && { borderColor: theme.colors.primary + '40', borderWidth: 1, borderRadius: DAY_SIZE / 2 }]}
+      >
+        <Text style={[styles.dayText, { color: theme.colors.text }, isToday && !isSelected && { color: theme.colors.primary, fontWeight: '700' }, isSelected && { color: '#FFF', fontWeight: '600' }, disabled && { color: 'transparent' }]}>{day}</Text>
+        {hasEvents && !isSelected && <View style={[styles.dayDot, { backgroundColor: theme.colors.primary }]} />}
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
@@ -33,23 +47,23 @@ export default function CalendarScreen() {
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [selectedDate, setSelectedDate] = useState(today.toISOString().split('T')[0]);
-  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const [direction, setDirection] = useState(0);
 
   const days = useMemo(() => getMonthDays(currentYear, currentMonth), [currentYear, currentMonth]);
   const selectedDayTodos = useMemo(() => getTodosForDate(selectedDate), [selectedDate, state.todos]);
 
-  const changeMonth = (direction) => {
-    Animated.timing(fadeAnim, { toValue: 0, duration: 120, useNativeDriver: true }).start(() => {
-      let m = currentMonth + direction, y = currentYear;
-      if (m < 0) { m = 11; y--; }
-      if (m > 11) { m = 0; y++; }
-      setCurrentMonth(m);
-      setCurrentYear(y);
-      Animated.timing(fadeAnim, { toValue: 1, duration: 180, useNativeDriver: true }).start();
-    });
+  const changeMonth = (dir) => {
+    setDirection(dir);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    let m = currentMonth + dir, y = currentYear;
+    if (m < 0) { m = 11; y--; }
+    if (m > 11) { m = 0; y++; }
+    setCurrentMonth(m);
+    setCurrentYear(y);
   };
 
   const todayStr = today.toISOString().split('T')[0];
+  const enteringAnim = direction >= 0 ? SlideInRight.duration(300).springify().damping(18) : SlideInLeft.duration(300).springify().damping(18);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -64,9 +78,11 @@ export default function CalendarScreen() {
         <TouchableOpacity onPress={() => changeMonth(-1)} style={styles.navBtn}>
           <Ionicons name="chevron-back" size={18} color={theme.colors.primary} />
         </TouchableOpacity>
-        <Animated.Text style={[styles.monthTitle, { opacity: fadeAnim, color: theme.colors.text }]}>
-          {getMonthName(currentMonth)} {currentYear}
-        </Animated.Text>
+        <Animated.View key={`${currentMonth}-${currentYear}`} entering={enteringAnim}>
+          <Text style={[styles.monthTitle, { color: theme.colors.text }]}>
+            {getMonthName(currentMonth)} {currentYear}
+          </Text>
+        </Animated.View>
         <TouchableOpacity onPress={() => changeMonth(1)} style={styles.navBtn}>
           <Ionicons name="chevron-forward" size={18} color={theme.colors.primary} />
         </TouchableOpacity>
@@ -78,7 +94,7 @@ export default function CalendarScreen() {
         ))}
       </View>
 
-      <Animated.View style={[styles.calendarGrid, { opacity: fadeAnim }]}>
+      <Animated.View key={`grid-${currentMonth}-${currentYear}`} entering={enteringAnim} style={styles.calendarGrid}>
         {days.map((dayObj, i) => {
           if (!dayObj) return <CalendarDay key={`empty-${i}`} disabled />;
           return (
@@ -103,18 +119,20 @@ export default function CalendarScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} style={styles.eventsList} contentContainerStyle={{ paddingBottom: 30 }}>
         {selectedDayTodos.length === 0 ? (
-          <View style={styles.emptyEvents}>
+          <Animated.View entering={FadeIn.duration(400).delay(200)} style={styles.emptyEvents}>
             <Ionicons name="calendar-outline" size={30} color={theme.colors.textMuted} />
             <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>No quests this day</Text>
-          </View>
+          </Animated.View>
         ) : (
-          selectedDayTodos.map(todo => (
-            <TouchableOpacity key={todo.id} onPress={() => toggleTodo(todo.id)} activeOpacity={0.7}>
-              <View style={[styles.eventItem, { backgroundColor: theme.colors.surface, borderLeftColor: todo.completed ? theme.colors.success : theme.colors.primary }]}>
-                <Ionicons name={todo.completed ? 'checkmark-circle' : 'ellipse-outline'} size={16} color={todo.completed ? theme.colors.success : theme.colors.primary} style={{ marginRight: 10 }} />
-                <Text style={[styles.eventTitle, { color: theme.colors.text }, todo.completed && { textDecorationLine: 'line-through', color: theme.colors.textMuted }]} numberOfLines={1}>{todo.title}</Text>
-              </View>
-            </TouchableOpacity>
+          selectedDayTodos.map((todo, i) => (
+            <Animated.View key={todo.id} entering={FadeInDown.duration(300).delay(i * 60).springify().damping(18)}>
+              <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); toggleTodo(todo.id); }} activeOpacity={0.7}>
+                <View style={[styles.eventItem, { backgroundColor: theme.colors.surface, borderLeftColor: todo.completed ? theme.colors.success : theme.colors.primary }]}>
+                  <Ionicons name={todo.completed ? 'checkmark-circle' : 'ellipse-outline'} size={16} color={todo.completed ? theme.colors.success : theme.colors.primary} style={{ marginRight: 10 }} />
+                  <Text style={[styles.eventTitle, { color: theme.colors.text }, todo.completed && { textDecorationLine: 'line-through', color: theme.colors.textMuted }]} numberOfLines={1}>{todo.title}</Text>
+                </View>
+              </TouchableOpacity>
+            </Animated.View>
           ))
         )}
       </ScrollView>

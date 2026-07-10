@@ -1,11 +1,15 @@
-import React, { useMemo, useRef, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, Dimensions, Animated, Easing, Platform,
+  View, Text, StyleSheet, ScrollView, Dimensions, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp, getLevel } from '../context/AppContext';
 import { useTheme } from '../theme/ThemeContext';
-import { FadeInView, ScaleInView } from '../components/MedievalUI';
+import Animated, {
+  FadeIn, FadeInDown, FadeInUp, ZoomIn,
+  useSharedValue, useAnimatedStyle, withSpring, withTiming,
+  Easing, interpolate, Layout,
+} from 'react-native-reanimated';
 
 const { width } = Dimensions.get('window');
 const BAR_WIDTH = (width - 72) / 7;
@@ -15,18 +19,22 @@ function LevelCard() {
   const { theme } = useTheme();
   const { state } = useApp();
   const level = getLevel(state.xp);
-  const barAnim = useRef(new Animated.Value(0)).current;
+  const barSv = useSharedValue(0);
 
-  useEffect(() => {
-    Animated.spring(barAnim, { toValue: level.progress, tension: 20, friction: 8, useNativeDriver: false }).start();
+  React.useEffect(() => {
+    barSv.value = withSpring(level.progress, { damping: 18, stiffness: 60 });
   }, []);
 
+  const barStyle = useAnimatedStyle(() => ({
+    width: barSv.value.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
+  }));
+
   return (
-    <FadeInView style={[styles.levelCard, { backgroundColor: theme.colors.surface, borderLeftColor: theme.colors.primary }]}>
+    <Animated.View entering={FadeInDown.duration(500).springify().damping(16)} style={[styles.levelCard, { backgroundColor: theme.colors.surface, borderLeftColor: theme.colors.primary }]}>
       <View style={styles.levelHeader}>
-        <View style={[styles.levelIconWrap, { backgroundColor: theme.colors.primary + '12' }]}>
+        <Animated.View entering={ZoomIn.duration(400).delay(200).springify().damping(12)} style={[styles.levelIconWrap, { backgroundColor: theme.colors.primary + '12' }]}>
           <Ionicons name="shield-outline" size={28} color={theme.colors.primary} />
-        </View>
+        </Animated.View>
         <View style={styles.levelInfo}>
           <Text style={[styles.levelTitle, { color: theme.colors.text }]}>{level.title}</Text>
           <Text style={[styles.levelSubtitle, { color: theme.colors.textMuted }]}>Level {level.level}</Text>
@@ -37,23 +45,28 @@ function LevelCard() {
         </View>
       </View>
       <View style={[styles.progressBg, { backgroundColor: theme.colors.surfaceLight }]}>
-        <Animated.View style={[styles.progressBar, { backgroundColor: theme.colors.primary, width: barAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }]} />
+        <Animated.View style={[styles.progressBar, { backgroundColor: theme.colors.primary }, barStyle]} />
       </View>
       <Text style={[styles.progressText, { color: theme.colors.textMuted }]}>
         {level.nextXp ? `${state.xp}/${level.nextXp} XP` : 'MAX'}
       </Text>
-    </FadeInView>
+    </Animated.View>
   );
 }
 
-function StatBox({ icon, value, label, color }) {
+function StatBoxWrap({ icon, value, label, color, delay }) {
   const { theme } = useTheme();
+  const scale = useSharedValue(1);
+  const s = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
   return (
-    <ScaleInView style={[styles.statBox, { backgroundColor: theme.colors.surface }]}>
-      <Ionicons name={icon} size={20} color={color} />
-      <Text style={[styles.statBoxValue, { color }]}>{value}</Text>
-      <Text style={[styles.statBoxLabel, { color: theme.colors.textMuted }]}>{label}</Text>
-    </ScaleInView>
+    <Animated.View entering={FadeInDown.duration(400).delay(delay).springify().damping(16)} style={[styles.statBoxWrap, s]}>
+      <View style={[styles.statBox, { backgroundColor: theme.colors.surface }]}>
+        <Ionicons name={icon} size={20} color={color} />
+        <Text style={[styles.statBoxValue, { color }]}>{value}</Text>
+        <Text style={[styles.statBoxLabel, { color: theme.colors.textMuted }]}>{label}</Text>
+      </View>
+    </Animated.View>
   );
 }
 
@@ -68,16 +81,38 @@ function WeeklyChart({ data, maxValue }) {
         const h = maxValue > 0 ? (value / maxValue) * 100 : 0;
         const isToday = i === today;
         return (
-          <View key={i} style={styles.barColumn}>
+          <Animated.View key={i} entering={FadeIn.duration(300).delay(i * 60)} style={styles.barColumn}>
             <Text style={[styles.barValue, { color: theme.colors.textMuted }]}>{value}</Text>
             <View style={[styles.barBg, { backgroundColor: theme.colors.surfaceLight, height: 100 }]}>
-              <View style={[styles.barFill, { height: Math.max(3, h), backgroundColor: isToday ? theme.colors.primary : theme.colors.primary + '40' }]} />
+              <Animated.View entering={FadeInUp.duration(500).delay(300 + i * 80)} style={[styles.barFill, { height: Math.max(3, h), backgroundColor: isToday ? theme.colors.primary : theme.colors.primary + '40' }]} />
             </View>
             <Text style={[styles.barDay, { color: isToday ? theme.colors.primary : theme.colors.textMuted }]}>{days[i]}</Text>
-          </View>
+          </Animated.View>
         );
       })}
     </View>
+  );
+}
+
+function CompletionRate({ rate }) {
+  const { theme } = useTheme();
+  const fillSv = useSharedValue(0);
+
+  React.useEffect(() => {
+    fillSv.value = withSpring(rate, { damping: 20, stiffness: 60 });
+  }, []);
+
+  const fillStyle = useAnimatedStyle(() => ({
+    width: fillSv.value.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }),
+  }));
+
+  return (
+    <Animated.View entering={FadeInDown.duration(500).delay(350).springify().damping(16)} style={[styles.rateCard, { backgroundColor: theme.colors.surface }]}>
+      <View style={[styles.rateBarBg, { backgroundColor: theme.colors.surfaceLight }]}>
+        <Animated.View style={[styles.rateBarFill, { backgroundColor: theme.colors.primary }, fillStyle]} />
+      </View>
+      <Text style={[styles.rateText, { color: theme.colors.textMuted }]}>{rate}% overall</Text>
+    </Animated.View>
   );
 }
 
@@ -116,47 +151,36 @@ export default function StatsScreen() {
 
         <LevelCard />
 
-        <FadeInView delay={100}>
+        <Animated.View entering={FadeIn.duration(400).delay(100)}>
           <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>Overview</Text>
-        </FadeInView>
+        </Animated.View>
         <View style={styles.statsGrid}>
           {[
-            { icon: 'checkmark-circle-outline', value: todoStats.completed, label: 'Done', color: theme.colors.success },
-            { icon: 'scroll-outline', value: todoStats.pending, label: 'Pending', color: theme.colors.primary },
-            { icon: 'alert-circle-outline', value: todoStats.overdue, label: 'Overdue', color: theme.colors.error },
-            { icon: 'flame-outline', value: habitStats.completedToday, label: 'Today', color: theme.colors.accent },
-          ].map((s, i) => (
-            <FadeInView key={s.label} delay={150 + i * 50} style={styles.statBoxWrap}>
-              <View style={[styles.statBox, { backgroundColor: theme.colors.surface }]}>
-                <Ionicons name={s.icon} size={20} color={s.color} />
-                <Text style={[styles.statBoxValue, { color: s.color }]}>{s.value}</Text>
-                <Text style={[styles.statBoxLabel, { color: theme.colors.textMuted }]}>{s.label}</Text>
-              </View>
-            </FadeInView>
+            { icon: 'checkmark-circle-outline', value: todoStats.completed, label: 'Done', color: theme.colors.success, delay: 150 },
+            { icon: 'scroll-outline', value: todoStats.pending, label: 'Pending', color: theme.colors.primary, delay: 200 },
+            { icon: 'alert-circle-outline', value: todoStats.overdue, label: 'Overdue', color: theme.colors.error, delay: 250 },
+            { icon: 'flame-outline', value: habitStats.completedToday, label: 'Today', color: theme.colors.accent, delay: 300 },
+          ].map(s => (
+            <StatBoxWrap key={s.label} icon={s.icon} value={s.value} label={s.label} color={s.color} delay={s.delay} />
           ))}
         </View>
 
-        <FadeInView delay={300}>
+        <Animated.View entering={FadeIn.duration(400).delay(300)}>
           <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>Completion</Text>
-        </FadeInView>
-        <FadeInView delay={350} style={[styles.rateCard, { backgroundColor: theme.colors.surface }]}>
-          <View style={[styles.rateBarBg, { backgroundColor: theme.colors.surfaceLight }]}>
-            <View style={[styles.rateBarFill, { width: `${completionRate}%`, backgroundColor: theme.colors.primary }]} />
-          </View>
-          <Text style={[styles.rateText, { color: theme.colors.textMuted }]}>{completionRate}% overall</Text>
-        </FadeInView>
+        </Animated.View>
+        <CompletionRate rate={completionRate} />
 
-        <FadeInView delay={400}>
+        <Animated.View entering={FadeIn.duration(400).delay(400)}>
           <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>Weekly Activity</Text>
-        </FadeInView>
-        <FadeInView delay={450} style={[styles.chartCard, { backgroundColor: theme.colors.surface }]}>
+        </Animated.View>
+        <Animated.View entering={FadeInDown.duration(500).delay(450).springify().damping(16)} style={[styles.chartCard, { backgroundColor: theme.colors.surface }]}>
           <WeeklyChart data={weeklyData} maxValue={maxWeekly} />
-        </FadeInView>
+        </Animated.View>
 
-        <FadeInView delay={500}>
+        <Animated.View entering={FadeIn.duration(400).delay(500)}>
           <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>By Category</Text>
-        </FadeInView>
-        <FadeInView delay={550} style={[styles.categoryCard, { backgroundColor: theme.colors.surface }]}>
+        </Animated.View>
+        <Animated.View entering={FadeInDown.duration(500).delay(550).springify().damping(16)} style={[styles.categoryCard, { backgroundColor: theme.colors.surface }]}>
           {['work', 'personal', 'health', 'education', 'finance', 'other'].map(cat => {
             const count = state.todos.filter(t => t.category === cat).length;
             const pct = todoStats.total > 0 ? Math.round((count / todoStats.total) * 100) : 0;
@@ -172,7 +196,7 @@ export default function StatsScreen() {
               </View>
             );
           })}
-        </FadeInView>
+        </Animated.View>
       </ScrollView>
     </View>
   );

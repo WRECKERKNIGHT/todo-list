@@ -1,19 +1,51 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Modal, Animated, Easing, Alert, Dimensions, Platform,
+  Modal, Alert, Dimensions, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../theme/ThemeContext';
 import { getTodayStr, getWeekDates, getHabitStreak } from '../utils/dateHelpers';
 import * as Haptics from 'expo-haptics';
-import { FadeInView } from '../components/MedievalUI';
+import Animated, {
+  FadeIn, FadeInDown, FadeInUp, FadeOutLeft,
+  useSharedValue, useAnimatedStyle, withSpring, withTiming,
+  withSequence, Easing, Layout, ZoomIn, BounceIn,
+} from 'react-native-reanimated';
+import { Swipeable } from 'react-native-gesture-handler';
 
 const { width } = Dimensions.get('window');
 const HABIT_COLORS = ['#C9A84C', '#C25B4E', '#5B9A6F', '#7A6B8A', '#5B8AC2', '#C27A5B'];
 const HABIT_ICONS = ['flame', 'fitness', 'book', 'musical-notes', 'restaurant', 'bedtime', 'water', 'sunny', 'heart', 'brain', 'footsteps', 'bicycle'];
 const serifFont = Platform.OS === 'ios' ? 'Georgia' : 'serif';
+
+function WeekCircle({ done, isToday, color, delay }) {
+  const { theme } = useTheme();
+  const scale = useSharedValue(done ? 1 : 0.9);
+  const fillScale = useSharedValue(done ? 1 : 0);
+
+  useEffect(() => {
+    scale.value = withSpring(done ? 1 : 0.9, { damping: 12, stiffness: 200 });
+    fillScale.value = withSpring(done ? 1 : 0, { damping: 14, stiffness: 180 });
+  }, [done]);
+
+  const circleStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    backgroundColor: done ? (color || theme.colors.primary) : theme.colors.surfaceLight,
+    borderColor: done ? (color || theme.colors.primary) : isToday ? (color || theme.colors.primary) + '50' : theme.colors.border,
+  }));
+
+  return (
+    <Animated.View style={[styles.weekDayCircle, circleStyle]}>
+      {done && (
+        <Animated.View entering={BounceIn.duration(300).springify().damping(8)}>
+          <Ionicons name="checkmark" size={12} color="#FFF" />
+        </Animated.View>
+      )}
+    </Animated.View>
+  );
+}
 
 function WeekRow({ habit, onToggle }) {
   const { theme } = useTheme();
@@ -21,14 +53,12 @@ function WeekRow({ habit, onToggle }) {
 
   return (
     <View style={styles.weekRow}>
-      {weekDates.map((d) => {
+      {weekDates.map((d, i) => {
         const done = habit.completedDates.includes(d.date);
         return (
           <TouchableOpacity key={d.date} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onToggle(habit.id, d.date); }} style={styles.weekDayCell}>
             <Text style={[styles.weekDayName, { color: theme.colors.textMuted }, d.isToday && { color: theme.colors.primary }]}>{d.dayName[0]}</Text>
-            <View style={[styles.weekDayCircle, { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.border }, done && { backgroundColor: habit.color || theme.colors.primary, borderColor: habit.color || theme.colors.primary }, d.isToday && { borderColor: (habit.color || theme.colors.primary) + '50' }]}>
-              {done && <Ionicons name="checkmark" size={12} color="#FFF" />}
-            </View>
+            <WeekCircle done={done} isToday={d.isToday} color={habit.color} delay={i * 30} />
             <Text style={[styles.weekDayNum, { color: theme.colors.textMuted }, d.isToday && { color: theme.colors.primary }]}>{d.dayNum}</Text>
           </TouchableOpacity>
         );
@@ -37,35 +67,60 @@ function WeekRow({ habit, onToggle }) {
   );
 }
 
-function HabitCard({ habit, onToggle, onDelete, onEdit }) {
+function HabitCard({ habit, onToggle, onDelete, onEdit, index }) {
   const { theme } = useTheme();
   const streak = getHabitStreak(habit.completedDates);
+  const scale = useSharedValue(1);
+  const cardStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+  const renderRightActions = () => (
+    <Animated.View entering={FadeIn.duration(200)} style={[styles.swipeAction, { backgroundColor: theme.colors.error }]}>
+      <Ionicons name="trash" size={20} color="#FFF" />
+      <Text style={styles.swipeText}>Delete</Text>
+    </Animated.View>
+  );
 
   return (
-    <TouchableOpacity onLongPress={() => onEdit(habit)} activeOpacity={0.9} style={[styles.habitCard, { backgroundColor: theme.colors.surface, borderLeftColor: habit.color || theme.colors.primary }]}>
-      <View style={styles.habitTop}>
-        <View style={[styles.habitIconWrap, { backgroundColor: (habit.color || theme.colors.primary) + '10' }]}>
-          <Ionicons name={habit.icon || 'flame'} size={20} color={habit.color || theme.colors.primary} />
-        </View>
-        <View style={styles.habitInfo}>
-          <Text style={[styles.habitName, { color: theme.colors.text }]}>{habit.name}</Text>
-          {habit.description ? <Text style={[styles.habitDesc, { color: theme.colors.textMuted }]} numberOfLines={1}>{habit.description}</Text> : null}
-        </View>
-        <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); onDelete(habit.id); }} style={styles.habitDelete}>
-          <Ionicons name="trash-outline" size={14} color={theme.colors.textMuted} />
-        </TouchableOpacity>
-      </View>
+    <Animated.View
+      entering={FadeInDown.duration(450).delay(index * 60).springify().damping(16).stiffness(110)}
+      exiting={FadeOutLeft.duration(300)}
+      layout={Layout.springify().damping(18)}
+    >
+      <Swipeable renderRightActions={renderRightActions} onSwipeableRightOpen={() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        onDelete(habit.id);
+      }} friction={2} rightThreshold={80}>
+        <Animated.View style={cardStyle}>
+          <TouchableOpacity
+            onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onEdit(habit); }}
+            onPressIn={() => { scale.value = withSpring(0.98, { damping: 15, stiffness: 400 }); }}
+            onPressOut={() => { scale.value = withSpring(1, { damping: 15, stiffness: 400 }); }}
+            activeOpacity={1}
+            style={[styles.habitCard, { backgroundColor: theme.colors.surface, borderLeftColor: habit.color || theme.colors.primary }]}
+          >
+            <View style={styles.habitTop}>
+              <View style={[styles.habitIconWrap, { backgroundColor: (habit.color || theme.colors.primary) + '10' }]}>
+                <Ionicons name={habit.icon || 'flame'} size={20} color={habit.color || theme.colors.primary} />
+              </View>
+              <View style={styles.habitInfo}>
+                <Text style={[styles.habitName, { color: theme.colors.text }]}>{habit.name}</Text>
+                {habit.description ? <Text style={[styles.habitDesc, { color: theme.colors.textMuted }]} numberOfLines={1}>{habit.description}</Text> : null}
+              </View>
+            </View>
 
-      <WeekRow habit={habit} onToggle={onToggle} />
+            <WeekRow habit={habit} onToggle={onToggle} />
 
-      <View style={styles.habitStats}>
-        <View style={styles.streakContainer}>
-          <Ionicons name="flame" size={12} color={theme.colors.accent} />
-          <Text style={[styles.streakText, { color: theme.colors.accent }]}>{streak > 0 ? `${streak}d streak` : 'Start streak'}</Text>
-        </View>
-        <Text style={[styles.completedCount, { color: theme.colors.textMuted }]}>{habit.completedDates.length} total</Text>
-      </View>
-    </TouchableOpacity>
+            <View style={styles.habitStats}>
+              <View style={styles.streakContainer}>
+                <Ionicons name="flame" size={12} color={theme.colors.accent} />
+                <Text style={[styles.streakText, { color: theme.colors.accent }]}>{streak > 0 ? `${streak}d streak` : 'Start streak'}</Text>
+              </View>
+              <Text style={[styles.completedCount, { color: theme.colors.textMuted }]}>{habit.completedDates.length} total</Text>
+            </View>
+          </TouchableOpacity>
+        </Animated.View>
+      </Swipeable>
+    </Animated.View>
   );
 }
 
@@ -75,15 +130,13 @@ function AddHabitModal({ visible, onClose, onSave, initialData }) {
   const [description, setDescription] = useState('');
   const [color, setColor] = useState(HABIT_COLORS[0]);
   const [icon, setIcon] = useState(HABIT_ICONS[0]);
-  const slideAnim = useRef(new Animated.Value(0)).current;
   const isEditing = !!initialData;
 
   useEffect(() => {
     if (visible) {
       if (initialData) { setName(initialData.name || ''); setDescription(initialData.description || ''); setColor(initialData.color || HABIT_COLORS[0]); setIcon(initialData.icon || HABIT_ICONS[0]); }
       else { setName(''); setDescription(''); setColor(HABIT_COLORS[Math.floor(Math.random() * HABIT_COLORS.length)]); setIcon(HABIT_ICONS[Math.floor(Math.random() * HABIT_ICONS.length)]); }
-      Animated.spring(slideAnim, { toValue: 1, friction: 8, tension: 40, useNativeDriver: true }).start();
-    } else { slideAnim.setValue(0); }
+    }
   }, [visible, initialData]);
 
   const handleSave = () => {
@@ -97,37 +150,36 @@ function AddHabitModal({ visible, onClose, onSave, initialData }) {
 
   return (
     <Modal visible={visible} transparent animationType="none">
-      <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onClose}>
-        <Animated.View style={[styles.modalContent, { backgroundColor: theme.colors.surface }, { transform: [{ translateY: slideAnim.interpolate({ inputRange: [0, 1], outputRange: [400, 0] }) }] }]}>
-          <TouchableOpacity activeOpacity={1}>
-            <View style={styles.modalHandle} />
-            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>{isEditing ? 'Edit Ritual' : 'New Ritual'}</Text>
+      <Animated.View entering={FadeIn.duration(200)} style={styles.modalOverlay}>
+        <TouchableOpacity activeOpacity={1} style={{ flex: 1 }} onPress={onClose} />
+        <Animated.View entering={FadeInDown.springify().damping(16).stiffness(120)} style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
+          <View style={styles.modalHandle} />
+          <Text style={[styles.modalTitle, { color: theme.colors.text }]}>{isEditing ? 'Edit Ritual' : 'New Ritual'}</Text>
 
-            <TextInput style={[styles.input, { backgroundColor: theme.colors.surfaceLight, color: theme.colors.text, borderColor: theme.colors.border }]} placeholder="Name" placeholderTextColor={theme.colors.textMuted} value={name} onChangeText={setName} autoFocus />
-            <TextInput style={[styles.input, styles.textArea, { backgroundColor: theme.colors.surfaceLight, color: theme.colors.text, borderColor: theme.colors.border }]} placeholder="Description (optional)" placeholderTextColor={theme.colors.textMuted} value={description} onChangeText={setDescription} multiline />
+          <TextInput style={[styles.input, { backgroundColor: theme.colors.surfaceLight, color: theme.colors.text, borderColor: theme.colors.border }]} placeholder="Name" placeholderTextColor={theme.colors.textMuted} value={name} onChangeText={setName} autoFocus />
+          <TextInput style={[styles.input, styles.textArea, { backgroundColor: theme.colors.surfaceLight, color: theme.colors.text, borderColor: theme.colors.border }]} placeholder="Description (optional)" placeholderTextColor={theme.colors.textMuted} value={description} onChangeText={setDescription} multiline />
 
-            <Text style={[styles.modalLabel, { color: theme.colors.textMuted }]}>Icon</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-              {HABIT_ICONS.map(i => (
-                <TouchableOpacity key={i} style={[styles.iconBtn, { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.border }, icon === i && { backgroundColor: color + '20', borderColor: color }]} onPress={() => setIcon(i)}>
-                  <Ionicons name={i} size={18} color={icon === i ? color : theme.colors.textMuted} />
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+          <Text style={[styles.modalLabel, { color: theme.colors.textMuted }]}>Icon</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+            {HABIT_ICONS.map(i => (
+              <TouchableOpacity key={i} style={[styles.iconBtn, { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.border }, icon === i && { backgroundColor: color + '20', borderColor: color }]} onPress={() => setIcon(i)}>
+                <Ionicons name={i} size={18} color={icon === i ? color : theme.colors.textMuted} />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
 
-            <Text style={[styles.modalLabel, { color: theme.colors.textMuted }]}>Color</Text>
-            <View style={styles.colorRow}>
-              {HABIT_COLORS.map(c => (
-                <TouchableOpacity key={c} style={[styles.colorBtn, { backgroundColor: c }, color === c && { borderWidth: 2, borderColor: theme.colors.text }]} onPress={() => setColor(c)} />
-              ))}
-            </View>
+          <Text style={[styles.modalLabel, { color: theme.colors.textMuted }]}>Color</Text>
+          <View style={styles.colorRow}>
+            {HABIT_COLORS.map(c => (
+              <TouchableOpacity key={c} style={[styles.colorBtn, { backgroundColor: c }, color === c && { borderWidth: 2, borderColor: theme.colors.text }]} onPress={() => setColor(c)} />
+            ))}
+          </View>
 
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-              <Text style={[styles.saveBtnText, { color: color }]}>{isEditing ? 'Update' : 'Create'}</Text>
-            </TouchableOpacity>
+          <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+            <Text style={[styles.saveBtnText, { color: color }]}>{isEditing ? 'Update' : 'Create'}</Text>
           </TouchableOpacity>
         </Animated.View>
-      </TouchableOpacity>
+      </Animated.View>
     </Modal>
   );
 }
@@ -150,23 +202,23 @@ export default function HabitScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.listContent}>
         {state.habits.length === 0 ? (
-          <View style={styles.emptyState}>
+          <Animated.View entering={FadeIn.duration(500).delay(200)} style={styles.emptyState}>
             <Ionicons name="flame-outline" size={40} color={theme.colors.textMuted} />
             <Text style={[styles.emptyTitle, { color: theme.colors.textSecondary }]}>No rituals</Text>
             <Text style={[styles.emptySubtitle, { color: theme.colors.textMuted }]}>Create your first ritual</Text>
-          </View>
+          </Animated.View>
         ) : (
           state.habits.map((habit, i) => (
-            <FadeInView key={habit.id} delay={i * 40}>
-              <HabitCard habit={habit} onToggle={handleToggle} onDelete={deleteHabit} onEdit={(h) => { setEditingHabit(h); setModalVisible(true); }} />
-            </FadeInView>
+            <HabitCard key={habit.id} habit={habit} index={i} onToggle={handleToggle} onDelete={deleteHabit} onEdit={(h) => { setEditingHabit(h); setModalVisible(true); }} />
           ))
         )}
       </ScrollView>
 
-      <TouchableOpacity style={[styles.fab, { backgroundColor: theme.colors.accent }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setEditingHabit(null); setModalVisible(true); }} activeOpacity={0.8}>
-        <Ionicons name="add" size={24} color="#FFF" />
-      </TouchableOpacity>
+      <Animated.View entering={ZoomIn.duration(400).delay(200).springify().damping(10)}>
+        <TouchableOpacity style={[styles.fab, { backgroundColor: theme.colors.accent }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setEditingHabit(null); setModalVisible(true); }} activeOpacity={0.8}>
+          <Ionicons name="add" size={24} color="#FFF" />
+        </TouchableOpacity>
+      </Animated.View>
 
       <AddHabitModal visible={modalVisible} onClose={() => { setModalVisible(false); setEditingHabit(null); }} onSave={(d) => { d.id ? updateHabit(d) : addHabit(d); setEditingHabit(null); }} initialData={editingHabit} />
     </View>
@@ -204,6 +256,12 @@ const styles = StyleSheet.create({
   streakContainer: { flexDirection: 'row', alignItems: 'center' },
   streakText: { fontSize: 11, fontWeight: '600', marginLeft: 4 },
   completedCount: { fontSize: 11 },
+
+  swipeAction: {
+    width: 80, justifyContent: 'center', alignItems: 'center',
+    borderRadius: 10, marginBottom: 10, marginLeft: 4,
+  },
+  swipeText: { fontSize: 10, color: '#FFF', marginTop: 4, fontWeight: '600' },
 
   emptyState: { alignItems: 'center', paddingTop: 80 },
   emptyTitle: { fontSize: 16, fontWeight: '600', marginTop: 12, marginBottom: 4 },

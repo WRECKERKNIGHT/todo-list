@@ -1,202 +1,185 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import {
-  View, Text, StyleSheet, Dimensions, TouchableOpacity,
-  Animated, Easing, Platform,
+  View, Text, StyleSheet, Dimensions, TouchableOpacity, Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import Animated, {
+  FadeIn, FadeInDown, FadeInUp, FadeInLeft, FadeInRight,
+  ZoomIn, BounceIn, SlideInDown, useSharedValue, useAnimatedStyle,
+  withSpring, withTiming, withRepeat, withSequence, Easing,
+  interpolate, Extrapolation, LightSpeedInLeft, FlipInYUp,
+} from 'react-native-reanimated';
 import { useTheme } from '../theme/ThemeContext';
-import { FadeInView, OrnamentalDivider } from '../components/MedievalUI';
+import { OrnamentalDivider, BreathingGlow } from '../components/MedievalUI';
 
 const { width, height } = Dimensions.get('window');
 const serifFont = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 
-export default function HomeScreen() {
-  const { theme, isDark } = useTheme();
-  const navigation = useNavigation();
-  const crownOpacity = useRef(new Animated.Value(0)).current;
-  const crownY = useRef(new Animated.Value(20)).current;
-  const titleOpacity = useRef(new Animated.Value(0)).current;
-  const titleY = useRef(new Animated.Value(30)).current;
-  const subtitleOpacity = useRef(new Animated.Value(0)).current;
-  const taglineOpacity = useRef(new Animated.Value(0)).current;
-  const dividerOpacity = useRef(new Animated.Value(0)).current;
-  const buttonScale = useRef(new Animated.Value(0.9)).current;
-  const buttonOpacity = useRef(new Animated.Value(0)).current;
+function FloatingDust({ delay, x, y, size, color }) {
+  const sv = useSharedValue(0);
 
   useEffect(() => {
-    Animated.sequence([
-      Animated.parallel([
-        Animated.timing(crownOpacity, {
-          toValue: 1, duration: 800, easing: Easing.out(Easing.cubic), useNativeDriver: true,
-        }),
-        Animated.timing(crownY, {
-          toValue: 0, duration: 800, easing: Easing.out(Easing.cubic), useNativeDriver: true,
-        }),
-      ]),
-      Animated.delay(200),
-      Animated.parallel([
-        Animated.timing(titleOpacity, {
-          toValue: 1, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true,
-        }),
-        Animated.timing(titleY, {
-          toValue: 0, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true,
-        }),
-      ]),
-      Animated.delay(150),
-      Animated.timing(subtitleOpacity, {
-        toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true,
-      }),
-      Animated.delay(100),
-      Animated.timing(taglineOpacity, {
-        toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true,
-      }),
-      Animated.delay(100),
-      Animated.timing(dividerOpacity, {
-        toValue: 1, duration: 400, easing: Easing.out(Easing.cubic), useNativeDriver: true,
-      }),
-      Animated.delay(100),
-      Animated.parallel([
-        Animated.spring(buttonScale, {
-          toValue: 1, tension: 30, friction: 8, useNativeDriver: true,
-        }),
-        Animated.timing(buttonOpacity, {
-          toValue: 1, duration: 400, easing: Easing.out(Easing.cubic), useNativeDriver: true,
-        }),
-      ]),
-    ]).start();
+    sv.value = withDelay(delay, withRepeat(
+      withSequence(
+        withTiming(1, { duration: 4000 + Math.random() * 3000, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0, { duration: 4000 + Math.random() * 3000, easing: Easing.inOut(Easing.sin) }),
+      ),
+      -1, false,
+    ));
   }, []);
 
-  const handlePress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    navigation.replace('Main');
-  };
+  const style = useAnimatedStyle(() => ({
+    opacity: interpolate(sv.value, [0, 1], [0, 0.25]),
+    transform: [
+      { translateY: interpolate(sv.value, [0, 1], [0, -60]) },
+      { scale: interpolate(sv.value, [0, 0.5, 1], [0.5, 1, 0.5]) },
+    ],
+  }));
+
+  return (
+    <Animated.View style={[styles.dust, { left: x, top: y, width: size, height: size, borderRadius: size / 2, backgroundColor: color }, style]} />
+  );
+}
+
+function ShieldHero() {
+  const { theme } = useTheme();
+  const rotation = useSharedValue(0);
+
+  useEffect(() => {
+    rotation.value = withRepeat(
+      withSequence(
+        withTiming(-5, { duration: 3000, easing: Easing.inOut(Easing.sin) }),
+        withTiming(5, { duration: 3000, easing: Easing.inOut(Easing.sin) }),
+      ),
+      -1, false,
+    );
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotation.value}deg` }],
+  }));
+
+  return (
+    <Animated.View entering={ZoomIn.duration(800).springify().damping(12).stiffness(80)} style={styles.shieldWrap}>
+      <BreathingGlow color={theme.colors.primary} size={160} />
+      <Animated.View style={[styles.shieldOuter, { borderColor: theme.colors.primary + '30' }, animatedStyle]}>
+        <Ionicons name="shield" size={52} color={theme.colors.primary} />
+      </Animated.View>
+    </Animated.View>
+  );
+}
+
+function HeroTitle() {
+  const { theme } = useTheme();
+  const navigation = useNavigation();
+  const btnScale = useSharedValue(1);
+
+  const btnStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: btnScale.value }],
+  }));
+
+  const handlePressIn = () => { btnScale.value = withSpring(0.95, { damping: 15, stiffness: 400 }); };
+  const handlePressOut = () => { btnScale.value = withSpring(1, { damping: 15, stiffness: 400 }); };
+
+  return (
+    <View style={styles.titleContainer}>
+      <ShieldHero />
+
+      <Animated.View entering={FadeInDown.duration(700).delay(300).springify().damping(16)} style={styles.titleRow}>
+        <Text style={[styles.title, { color: theme.colors.text }]}>Royal</Text>
+        <Text style={[styles.titleAccent, { color: theme.colors.primary }]}>Task</Text>
+      </Animated.View>
+
+      <Animated.View entering={FadeIn.duration(600).delay(600)}>
+        <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>Command Your Dominion</Text>
+      </Animated.View>
+
+      <Animated.View entering={FadeIn.duration(500).delay(800)}>
+        <Text style={[styles.tagline, { color: theme.colors.textMuted }]}>Tasks · Habits · Focus</Text>
+      </Animated.View>
+
+      <OrnamentalDivider />
+
+      <Animated.View entering={FadeInUp.duration(600).delay(1000).springify().damping(14)}>
+        <Animated.View style={btnStyle}>
+          <TouchableOpacity
+            style={[styles.button, { borderColor: theme.colors.primary + '40' }]}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); navigation.replace('Main'); }}
+            onPressIn={handlePressIn}
+            onPressOut={handlePressOut}
+            activeOpacity={0.9}
+          >
+            <BreathingGlow color={theme.colors.primary} size={280} style={{ top: -100 }} />
+            <Text style={[styles.buttonText, { color: theme.colors.primary }]}>Begin Your Quest</Text>
+            <Ionicons name="arrow-forward" size={16} color={theme.colors.primary} style={{ marginLeft: 8 }} />
+          </TouchableOpacity>
+        </Animated.View>
+      </Animated.View>
+    </View>
+  );
+}
+
+const dustParticles = Array.from({ length: 12 }, (_, i) => ({
+  key: i,
+  x: Math.random() * width,
+  y: Math.random() * height,
+  size: Math.random() * 3 + 1.5,
+  delay: Math.random() * 3000,
+  color: ['#C9A84C', '#E2CC7E', '#8B6914'][i % 3],
+}));
+
+export default function HomeScreen() {
+  const { theme, isDark } = useTheme();
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <LinearGradient
-        colors={isDark
-          ? ['#0E0C11', '#12101A', '#161320']
-          : ['#F5EDE0', '#EDE5D8', '#E5DDD0']}
+        colors={isDark ? ['#0E0C11', '#12101A', '#161320'] : ['#F5EDE0', '#EDE5D8', '#E5DDD0']}
         style={StyleSheet.absoluteFill}
       />
 
+      {dustParticles.map(p => (
+        <FloatingDust key={p.key} {...p} />
+      ))}
+
       <View style={styles.content}>
-        <Animated.View style={[styles.shieldWrap, { opacity: crownOpacity, transform: [{ translateY: crownY }] }]}>
-          <View style={[styles.shieldOuter, { borderColor: theme.colors.primary + '30' }]}>
-            <Ionicons name="shield" size={56} color={theme.colors.primary} />
-          </View>
-        </Animated.View>
-
-        <Animated.View style={[styles.titleWrap, { opacity: titleOpacity, transform: [{ translateY: titleY }] }]}>
-          <Text style={[styles.title, { color: theme.colors.text }]}>Royal</Text>
-          <Text style={[styles.titleBold, { color: theme.colors.primary }]}>Task</Text>
-        </Animated.View>
-
-        <Animated.Text style={[styles.subtitle, { opacity: subtitleOpacity, color: theme.colors.textSecondary }]}>
-          Command Your Dominion
-        </Animated.Text>
-
-        <Animated.Text style={[styles.tagline, { opacity: taglineOpacity, color: theme.colors.textMuted }]}>
-          Tasks · Habits · Focus
-        </Animated.Text>
-
-        <Animated.View style={{ opacity: dividerOpacity, width: '100%' }}>
-          <OrnamentalDivider />
-        </Animated.View>
-
-        <Animated.View style={[styles.buttonWrap, { opacity: buttonOpacity, transform: [{ scale: buttonScale }] }]}>
-          <TouchableOpacity
-            style={[styles.button, { borderColor: theme.colors.primary + '50' }]}
-            onPress={handlePress}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.buttonText, { color: theme.colors.primary }]}>Begin</Text>
-            <Ionicons name="arrow-forward" size={16} color={theme.colors.primary} style={{ marginLeft: 8 }} />
-          </TouchableOpacity>
-        </Animated.View>
+        <HeroTitle />
       </View>
 
-      <Text style={[styles.version, { color: theme.colors.textMuted }]}>v2.0</Text>
+      <Animated.View entering={FadeIn.duration(500).delay(1400)}>
+        <Text style={[styles.version, { color: theme.colors.textMuted }]}>v2.0</Text>
+      </Animated.View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  content: {
-    alignItems: 'center',
-    paddingHorizontal: 40,
-  },
-  shieldWrap: {
-    marginBottom: 32,
-  },
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  content: { alignItems: 'center', paddingHorizontal: 40 },
+  dust: { position: 'absolute' },
+
+  shieldWrap: { width: 120, height: 120, justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
   shieldOuter: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 90, height: 90, borderRadius: 45, borderWidth: 1,
+    justifyContent: 'center', alignItems: 'center',
   },
-  titleWrap: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    marginBottom: 12,
-  },
-  title: {
-    fontSize: 44,
-    fontWeight: '400',
-    fontFamily: serifFont,
-    letterSpacing: 0.5,
-    marginRight: 8,
-  },
-  titleBold: {
-    fontSize: 44,
-    fontWeight: '400',
-    fontFamily: serifFont,
-    letterSpacing: 0.5,
-  },
-  subtitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    letterSpacing: 3,
-    textTransform: 'uppercase',
-    marginBottom: 8,
-  },
-  tagline: {
-    fontSize: 13,
-    letterSpacing: 1,
-    marginBottom: 4,
-  },
-  buttonWrap: {
-    marginTop: 8,
-  },
+
+  titleRow: { flexDirection: 'row', alignItems: 'baseline', marginBottom: 12 },
+  title: { fontSize: 44, fontWeight: '400', fontFamily: serifFont, letterSpacing: 0.5, marginRight: 8 },
+  titleAccent: { fontSize: 44, fontWeight: '400', fontFamily: serifFont, letterSpacing: 0.5 },
+
+  subtitle: { fontSize: 14, fontWeight: '500', letterSpacing: 3, textTransform: 'uppercase', marginBottom: 8, textAlign: 'center' },
+  tagline: { fontSize: 13, letterSpacing: 1, marginBottom: 4, textAlign: 'center' },
+
   button: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-    paddingVertical: 16,
-    borderRadius: 8,
-    borderWidth: 1,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 36, paddingVertical: 16, borderRadius: 10,
+    borderWidth: 1, overflow: 'hidden', marginTop: 8,
   },
-  buttonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  version: {
-    position: 'absolute',
-    bottom: 50,
-    fontSize: 11,
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-  },
+  buttonText: { fontSize: 14, fontWeight: '600', letterSpacing: 1.5, textTransform: 'uppercase' },
+
+  version: { position: 'absolute', bottom: 50, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' },
 });

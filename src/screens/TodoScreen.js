@@ -1,14 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Modal, Animated, Easing, Alert, Platform, Dimensions,
+  Modal, Alert, Platform, Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../theme/ThemeContext';
 import { formatDate, getPriorityColor, getCategoryColor, isOverdue } from '../utils/dateHelpers';
 import * as Haptics from 'expo-haptics';
-import { FadeInView } from '../components/MedievalUI';
+import Animated, {
+  FadeIn, FadeInDown, FadeInRight, FadeOutLeft, FadeOutRight,
+  useSharedValue, useAnimatedStyle, withSpring, withTiming,
+  Easing, interpolate, Layout, runOnJS,
+  SlideInDown, ZoomIn, BounceIn,
+} from 'react-native-reanimated';
+import { Swipeable } from 'react-native-gesture-handler';
 
 const { width } = Dimensions.get('window');
 const serifFont = Platform.OS === 'ios' ? 'Georgia' : 'serif';
@@ -42,87 +48,128 @@ const RECURRING_OPTIONS = [
   { label: 'Monthly', value: 'monthly' },
 ];
 
-function TodoItem({ todo, onToggle, onDelete, onEdit, onToggleSubtask }) {
+function AnimatedCheckbox({ checked, color }) {
   const { theme } = useTheme();
-  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const scale = useSharedValue(checked ? 1 : 0);
+
+  useEffect(() => {
+    scale.value = withSpring(checked ? 1 : 0, { damping: 12, stiffness: 200 });
+  }, [checked]);
+
+  const style = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    backgroundColor: checked ? (color || theme.colors.success) : 'transparent',
+    borderColor: checked ? (color || theme.colors.success) : theme.colors.border,
+  }));
+
+  return (
+    <Animated.View style={[styles.checkbox, style]}>
+      {checked && (
+        <Animated.View entering={BounceIn.duration(300).springify().damping(8)}>
+          <Ionicons name="checkmark" size={12} color="#FFF" />
+        </Animated.View>
+      )}
+    </Animated.View>
+  );
+}
+
+function TodoItem({ todo, onToggle, onDelete, onEdit, onToggleSubtask, index }) {
+  const { theme } = useTheme();
   const pColor = getPriorityColor(todo.priority);
   const categoryInfo = CATEGORIES.find(c => c.value === todo.category);
+  const scale = useSharedValue(1);
 
-  const handleToggle = () => {
+  const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Animated.sequence([
-      Animated.timing(scaleAnim, { toValue: 0.97, duration: 80, useNativeDriver: true }),
-      Animated.timing(scaleAnim, { toValue: 1, duration: 80, useNativeDriver: true }),
-    ]).start();
+    scale.value = withSequence(
+      withSpring(0.97, { damping: 15, stiffness: 400 }),
+      withSpring(1, { damping: 15, stiffness: 400 }),
+    );
     onToggle(todo.id);
   };
 
+  const cardStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const renderRightActions = (progress, dragX) => (
+    <Animated.View entering={FadeInRight.duration(200)} style={[styles.swipeAction, { backgroundColor: theme.colors.error }]}>
+      <Ionicons name="trash" size={20} color="#FFF" />
+      <Text style={styles.swipeText}>Delete</Text>
+    </Animated.View>
+  );
+
   return (
-    <Animated.View style={{ transform: [{ scale: scaleAnim }], marginBottom: 8 }}>
-      <TouchableOpacity
-        onPress={handleToggle}
-        onLongPress={() => onEdit(todo)}
-        activeOpacity={0.7}
-        style={[styles.todoItem, { backgroundColor: theme.colors.surface, borderLeftColor: pColor }]}
-      >
-        <View style={[styles.checkbox, todo.completed && { backgroundColor: theme.colors.success, borderColor: theme.colors.success }]}>
-          {todo.completed && <Ionicons name="checkmark" size={12} color="#FFF" />}
-        </View>
+    <Animated.View
+      entering={FadeInDown.duration(400).delay(index * 50).springify().damping(16).stiffness(120)}
+      exiting={FadeOutLeft.duration(300)}
+      layout={Layout.springify().damping(18).stiffness(150)}
+    >
+      <Swipeable renderRightActions={renderRightActions} onSwipeableRightOpen={() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        onDelete(todo.id);
+      }} friction={2} rightThreshold={80}>
+        <Animated.View style={cardStyle}>
+          <TouchableOpacity
+            onPress={handlePress}
+            onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onEdit(todo); }}
+            activeOpacity={1}
+            style={[styles.todoItem, { backgroundColor: theme.colors.surface, borderLeftColor: pColor }]}
+          >
+            <AnimatedCheckbox checked={todo.completed} />
 
-        <View style={styles.todoContent}>
-          <View style={styles.todoTop}>
-            <Text
-              style={[styles.todoTitle, { color: theme.colors.text }, todo.completed && { textDecorationLine: 'line-through', color: theme.colors.textMuted }]}
-              numberOfLines={1}
-            >
-              {todo.title}
-            </Text>
-            <View style={[styles.priorityDot, { backgroundColor: pColor }]} />
-          </View>
-
-          <View style={styles.todoMeta}>
-            {categoryInfo && (
-              <View style={styles.metaItem}>
-                <Ionicons name={categoryInfo.icon} size={10} color={theme.colors.textMuted} />
-                <Text style={[styles.metaText, { color: theme.colors.textMuted }]}>{categoryInfo.label}</Text>
-              </View>
-            )}
-            {todo.recurring && (
-              <View style={styles.metaItem}>
-                <Ionicons name="repeat" size={10} color={theme.colors.textMuted} />
-                <Text style={[styles.metaText, { color: theme.colors.textMuted }]}>{todo.recurring}</Text>
-              </View>
-            )}
-            {todo.dueDate && (
-              <View style={styles.metaItem}>
-                {isOverdue(todo.dueDate) && !todo.completed && <Ionicons name="alert" size={10} color={theme.colors.error} />}
-                <Text style={[styles.metaText, { color: isOverdue(todo.dueDate) && !todo.completed ? theme.colors.error : theme.colors.textMuted }]}>
-                  {formatDate(todo.dueDate)}
+            <View style={styles.todoContent}>
+              <View style={styles.todoTop}>
+                <Text
+                  style={[styles.todoTitle, { color: theme.colors.text }, todo.completed && { textDecorationLine: 'line-through', color: theme.colors.textMuted }]}
+                  numberOfLines={1}
+                >
+                  {todo.title}
                 </Text>
+                <View style={[styles.priorityDot, { backgroundColor: pColor }]} />
               </View>
-            )}
-          </View>
 
-          {todo.subtasks && todo.subtasks.length > 0 && (
-            <View style={styles.subtasksContainer}>
-              {todo.subtasks.map(sub => (
-                <TouchableOpacity key={sub.id} style={styles.subtaskRow} onPress={() => onToggleSubtask(todo.id, sub.id)}>
-                  <View style={[styles.subtaskCheck, { borderColor: sub.completed ? theme.colors.success : theme.colors.border }]}>
-                    {sub.completed && <Ionicons name="checkmark" size={8} color={theme.colors.success} />}
+              <View style={styles.todoMeta}>
+                {categoryInfo && (
+                  <View style={styles.metaItem}>
+                    <Ionicons name={categoryInfo.icon} size={10} color={theme.colors.textMuted} />
+                    <Text style={[styles.metaText, { color: theme.colors.textMuted }]}>{categoryInfo.label}</Text>
                   </View>
-                  <Text style={[styles.subtaskText, { color: theme.colors.textSecondary }, sub.completed && { textDecorationLine: 'line-through', color: theme.colors.textMuted }]} numberOfLines={1}>
-                    {sub.title}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </View>
+                )}
+                {todo.recurring && (
+                  <View style={styles.metaItem}>
+                    <Ionicons name="repeat" size={10} color={theme.colors.textMuted} />
+                    <Text style={[styles.metaText, { color: theme.colors.textMuted }]}>{todo.recurring}</Text>
+                  </View>
+                )}
+                {todo.dueDate && (
+                  <View style={styles.metaItem}>
+                    {isOverdue(todo.dueDate) && !todo.completed && <Ionicons name="alert" size={10} color={theme.colors.error} />}
+                    <Text style={[styles.metaText, { color: isOverdue(todo.dueDate) && !todo.completed ? theme.colors.error : theme.colors.textMuted }]}>
+                      {formatDate(todo.dueDate)}
+                    </Text>
+                  </View>
+                )}
+              </View>
 
-        <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); onDelete(todo.id); }} style={styles.deleteBtn}>
-          <Ionicons name="trash-outline" size={14} color={theme.colors.textMuted} />
-        </TouchableOpacity>
-      </TouchableOpacity>
+              {todo.subtasks && todo.subtasks.length > 0 && (
+                <View style={styles.subtasksContainer}>
+                  {todo.subtasks.map(sub => (
+                    <TouchableOpacity key={sub.id} style={styles.subtaskRow} onPress={() => onToggleSubtask(todo.id, sub.id)}>
+                      <View style={[styles.subtaskCheck, { borderColor: sub.completed ? theme.colors.success : theme.colors.border }]}>
+                        {sub.completed && <Ionicons name="checkmark" size={8} color={theme.colors.success} />}
+                      </View>
+                      <Text style={[styles.subtaskText, { color: theme.colors.textSecondary }, sub.completed && { textDecorationLine: 'line-through', color: theme.colors.textMuted }]} numberOfLines={1}>
+                        {sub.title}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
+        </Animated.View>
+      </Swipeable>
     </Animated.View>
   );
 }
@@ -139,7 +186,6 @@ function AddTodoModal({ visible, onClose, onSave, initialData }) {
   const [recurring, setRecurring] = useState(null);
   const [subtasks, setSubtasks] = useState([]);
   const [subtaskInput, setSubtaskInput] = useState('');
-  const slideAnim = useRef(new Animated.Value(0)).current;
   const isEditing = !!initialData;
 
   useEffect(() => {
@@ -158,9 +204,6 @@ function AddTodoModal({ visible, onClose, onSave, initialData }) {
         setTitle(''); setDescription(''); setPriority('medium'); setCategory('personal');
         setDueDate(''); setDueTime(''); setHasReminder(false); setRecurring(null); setSubtasks([]);
       }
-      Animated.spring(slideAnim, { toValue: 1, friction: 8, tension: 40, useNativeDriver: true }).start();
-    } else {
-      slideAnim.setValue(0);
     }
   }, [visible, initialData]);
 
@@ -187,82 +230,100 @@ function AddTodoModal({ visible, onClose, onSave, initialData }) {
 
   return (
     <Modal visible={visible} transparent animationType="none">
-      <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onClose}>
-        <Animated.View style={[styles.modalContent, { backgroundColor: theme.colors.surface }, { transform: [{ translateY: slideAnim.interpolate({ inputRange: [0, 1], outputRange: [400, 0] }) }] }]}>
-          <TouchableOpacity activeOpacity={1}>
-            <View style={styles.modalHandle} />
-            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>{isEditing ? 'Edit Quest' : 'New Quest'}</Text>
+      <Animated.View entering={FadeIn.duration(200)} style={styles.modalOverlay}>
+        <TouchableOpacity activeOpacity={1} style={{ flex: 1 }} onPress={onClose} />
+        <Animated.View entering={SlideInDown.springify().damping(16).stiffness(120)} style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
+          <View style={styles.modalHandle} />
+          <Text style={[styles.modalTitle, { color: theme.colors.text }]}>{isEditing ? 'Edit Quest' : 'New Quest'}</Text>
 
-            <TextInput style={[styles.input, { backgroundColor: theme.colors.surfaceLight, color: theme.colors.text, borderColor: theme.colors.border }]} placeholder="Title" placeholderTextColor={theme.colors.textMuted} value={title} onChangeText={setTitle} autoFocus />
-            <TextInput style={[styles.input, styles.textArea, { backgroundColor: theme.colors.surfaceLight, color: theme.colors.text, borderColor: theme.colors.border }]} placeholder="Description (optional)" placeholderTextColor={theme.colors.textMuted} value={description} onChangeText={setDescription} multiline />
+          <TextInput style={[styles.input, { backgroundColor: theme.colors.surfaceLight, color: theme.colors.text, borderColor: theme.colors.border }]} placeholder="Title" placeholderTextColor={theme.colors.textMuted} value={title} onChangeText={setTitle} autoFocus />
+          <TextInput style={[styles.input, styles.textArea, { backgroundColor: theme.colors.surfaceLight, color: theme.colors.text, borderColor: theme.colors.border }]} placeholder="Description (optional)" placeholderTextColor={theme.colors.textMuted} value={description} onChangeText={setDescription} multiline />
 
-            <Text style={[styles.modalLabel, { color: theme.colors.textMuted }]}>Priority</Text>
-            <View style={styles.optionRow}>
-              {PRIORITIES.map(p => (
-                <TouchableOpacity key={p.value} style={[styles.optionBtn, { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.border }, priority === p.value && { backgroundColor: p.color + '15', borderColor: p.color }]} onPress={() => setPriority(p.value)}>
-                  <Text style={[styles.optionText, { color: theme.colors.textSecondary }, priority === p.value && { color: p.color }]}>{p.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={[styles.modalLabel, { color: theme.colors.textMuted }]}>Category</Text>
-            <View style={styles.optionRow}>
-              {CATEGORIES.map(c => (
-                <TouchableOpacity key={c.value} style={[styles.optionBtn, { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.border }, category === c.value && { backgroundColor: theme.colors.primary + '15', borderColor: theme.colors.primary }]} onPress={() => setCategory(c.value)}>
-                  <Ionicons name={c.icon} size={12} color={category === c.value ? theme.colors.primary : theme.colors.textMuted} />
-                  <Text style={[styles.optionText, { color: theme.colors.textSecondary, marginLeft: 4 }, category === c.value && { color: theme.colors.primary }]}>{c.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={[styles.modalLabel, { color: theme.colors.textMuted }]}>Due Date</Text>
-            <TextInput style={[styles.input, { backgroundColor: theme.colors.surfaceLight, color: theme.colors.text, borderColor: theme.colors.border }]} placeholder="YYYY-MM-DD" placeholderTextColor={theme.colors.textMuted} value={dueDate} onChangeText={setDueDate} />
-
-            <TouchableOpacity style={styles.reminderToggle} onPress={() => setHasReminder(!hasReminder)}>
-              <View style={[styles.modalCheckbox, hasReminder && { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary }]}>
-                {hasReminder && <Ionicons name="checkmark" size={10} color="#FFF" />}
-              </View>
-              <Text style={[styles.reminderText, { color: theme.colors.textSecondary }]}>Set reminder</Text>
-            </TouchableOpacity>
-
-            {hasReminder && <TextInput style={[styles.input, { backgroundColor: theme.colors.surfaceLight, color: theme.colors.text, borderColor: theme.colors.border }]} placeholder="HH:MM (24h)" placeholderTextColor={theme.colors.textMuted} value={dueTime} onChangeText={setDueTime} />}
-
-            <Text style={[styles.modalLabel, { color: theme.colors.textMuted }]}>Repeat</Text>
-            <View style={styles.optionRow}>
-              {RECURRING_OPTIONS.map(r => (
-                <TouchableOpacity key={r.value || 'none'} style={[styles.optionBtn, { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.border }, recurring === r.value && { backgroundColor: theme.colors.primary + '15', borderColor: theme.colors.primary }]} onPress={() => setRecurring(r.value)}>
-                  <Text style={[styles.optionText, { color: theme.colors.textSecondary }, recurring === r.value && { color: theme.colors.primary }]}>{r.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={[styles.modalLabel, { color: theme.colors.textMuted }]}>Subtasks</Text>
-            <View style={styles.subtaskInputRow}>
-              <TextInput style={[styles.subtaskInput, { backgroundColor: theme.colors.surfaceLight, color: theme.colors.text, borderColor: theme.colors.border }]} placeholder="Add subtask..." placeholderTextColor={theme.colors.textMuted} value={subtaskInput} onChangeText={setSubtaskInput} onSubmitEditing={addSubtask} />
-              <TouchableOpacity style={[styles.subtaskAddBtn, { backgroundColor: theme.colors.primary }]} onPress={addSubtask}>
-                <Ionicons name="add" size={18} color="#FFF" />
+          <Text style={[styles.modalLabel, { color: theme.colors.textMuted }]}>Priority</Text>
+          <View style={styles.optionRow}>
+            {PRIORITIES.map(p => (
+              <TouchableOpacity key={p.value} style={[styles.optionBtn, { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.border }, priority === p.value && { backgroundColor: p.color + '15', borderColor: p.color }]} onPress={() => setPriority(p.value)}>
+                <Text style={[styles.optionText, { color: theme.colors.textSecondary }, priority === p.value && { color: p.color }]}>{p.label}</Text>
               </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={[styles.modalLabel, { color: theme.colors.textMuted }]}>Category</Text>
+          <View style={styles.optionRow}>
+            {CATEGORIES.map(c => (
+              <TouchableOpacity key={c.value} style={[styles.optionBtn, { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.border }, category === c.value && { backgroundColor: theme.colors.primary + '15', borderColor: theme.colors.primary }]} onPress={() => setCategory(c.value)}>
+                <Ionicons name={c.icon} size={12} color={category === c.value ? theme.colors.primary : theme.colors.textMuted} />
+                <Text style={[styles.optionText, { color: theme.colors.textSecondary, marginLeft: 4 }, category === c.value && { color: theme.colors.primary }]}>{c.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={[styles.modalLabel, { color: theme.colors.textMuted }]}>Due Date</Text>
+          <TextInput style={[styles.input, { backgroundColor: theme.colors.surfaceLight, color: theme.colors.text, borderColor: theme.colors.border }]} placeholder="YYYY-MM-DD" placeholderTextColor={theme.colors.textMuted} value={dueDate} onChangeText={setDueDate} />
+
+          <TouchableOpacity style={styles.reminderToggle} onPress={() => setHasReminder(!hasReminder)}>
+            <View style={[styles.modalCheckbox, hasReminder && { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary }]}>
+              {hasReminder && <Ionicons name="checkmark" size={10} color="#FFF" />}
             </View>
-            {subtasks.length > 0 && (
-              <View style={{ marginBottom: 14 }}>
-                {subtasks.map(sub => (
-                  <View key={sub.id} style={[styles.subtaskChip, { backgroundColor: theme.colors.surfaceLight }]}>
+            <Text style={[styles.reminderText, { color: theme.colors.textSecondary }]}>Set reminder</Text>
+          </TouchableOpacity>
+
+          {hasReminder && <TextInput style={[styles.input, { backgroundColor: theme.colors.surfaceLight, color: theme.colors.text, borderColor: theme.colors.border }]} placeholder="HH:MM (24h)" placeholderTextColor={theme.colors.textMuted} value={dueTime} onChangeText={setDueTime} />}
+
+          <Text style={[styles.modalLabel, { color: theme.colors.textMuted }]}>Repeat</Text>
+          <View style={styles.optionRow}>
+            {RECURRING_OPTIONS.map(r => (
+              <TouchableOpacity key={r.value || 'none'} style={[styles.optionBtn, { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.border }, recurring === r.value && { backgroundColor: theme.colors.primary + '15', borderColor: theme.colors.primary }]} onPress={() => setRecurring(r.value)}>
+                <Text style={[styles.optionText, { color: theme.colors.textSecondary }, recurring === r.value && { color: theme.colors.primary }]}>{r.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={[styles.modalLabel, { color: theme.colors.textMuted }]}>Subtasks</Text>
+          <View style={styles.subtaskInputRow}>
+            <TextInput style={[styles.subtaskInput, { backgroundColor: theme.colors.surfaceLight, color: theme.colors.text, borderColor: theme.colors.border }]} placeholder="Add subtask..." placeholderTextColor={theme.colors.textMuted} value={subtaskInput} onChangeText={setSubtaskInput} onSubmitEditing={addSubtask} />
+            <TouchableOpacity style={[styles.subtaskAddBtn, { backgroundColor: theme.colors.primary }]} onPress={addSubtask}>
+              <Ionicons name="add" size={18} color="#FFF" />
+            </TouchableOpacity>
+          </View>
+          {subtasks.length > 0 && (
+            <View style={{ marginBottom: 14 }}>
+              {subtasks.map(sub => (
+                <Animated.View key={sub.id} entering={FadeInDown.duration(200).springify()}>
+                  <View style={[styles.subtaskChip, { backgroundColor: theme.colors.surfaceLight }]}>
                     <Text style={[styles.subtaskChipText, { color: theme.colors.text }]} numberOfLines={1}>{sub.title}</Text>
                     <TouchableOpacity onPress={() => setSubtasks(subtasks.filter(s => s.id !== sub.id))}>
                       <Ionicons name="close-circle" size={14} color={theme.colors.textMuted} />
                     </TouchableOpacity>
                   </View>
-                ))}
-              </View>
-            )}
+                </Animated.View>
+              ))}
+            </View>
+          )}
 
-            <TouchableOpacity style={[styles.saveBtn, { borderColor: theme.colors.primary + '30' }]} onPress={handleSave}>
-              <Text style={[styles.saveBtnText, { color: theme.colors.primary }]}>{isEditing ? 'Update Quest' : 'Add Quest'}</Text>
-            </TouchableOpacity>
+          <TouchableOpacity style={[styles.saveBtn, { borderColor: theme.colors.primary + '30' }]} onPress={handleSave}>
+            <Text style={[styles.saveBtnText, { color: theme.colors.primary }]}>{isEditing ? 'Update Quest' : 'Add Quest'}</Text>
           </TouchableOpacity>
         </Animated.View>
-      </TouchableOpacity>
+      </Animated.View>
     </Modal>
+  );
+}
+
+function FilterChip({ f, active, theme, onPress }) {
+  const scale = useSharedValue(1);
+  const s = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+  return (
+    <Animated.View style={s}>
+      <TouchableOpacity
+        style={[styles.filterChip, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }, active && { backgroundColor: theme.colors.primary + '15', borderColor: theme.colors.primary }]}
+        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); scale.value = withSequence(withSpring(0.92, { damping: 10, stiffness: 400 }), withSpring(1, { damping: 10, stiffness: 400 })); onPress(); }}
+        activeOpacity={1}
+      >
+        <Text style={[styles.filterChipText, { color: theme.colors.textMuted }, active && { color: theme.colors.primary }]}>{f.label}</Text>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
@@ -274,6 +335,11 @@ export default function TodoScreen() {
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('newest');
   const [searchQuery, setSearchQuery] = useState('');
+  const fabScale = useSharedValue(1);
+
+  const fabStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: fabScale.value }],
+  }));
 
   const filteredTodos = state.todos
     .filter(t => {
@@ -299,40 +365,44 @@ export default function TodoScreen() {
         <Text style={[styles.count, { color: theme.colors.textMuted }]}>{filteredTodos.length} of {state.todos.length}</Text>
       </View>
 
-      <View style={[styles.searchBar, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+      <Animated.View entering={FadeIn.duration(400)} style={[styles.searchBar, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
         <Ionicons name="search" size={14} color={theme.colors.textMuted} style={{ marginRight: 8 }} />
         <TextInput style={[styles.searchInput, { color: theme.colors.text }]} placeholder="Search..." placeholderTextColor={theme.colors.textMuted} value={searchQuery} onChangeText={setSearchQuery} />
-      </View>
+      </Animated.View>
 
       <View style={styles.filterRow}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {FILTER_OPTIONS.map(f => (
-            <TouchableOpacity key={f.value} style={[styles.filterChip, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }, filter === f.value && { backgroundColor: theme.colors.primary + '15', borderColor: theme.colors.primary }]} onPress={() => setFilter(f.value)}>
-              <Text style={[styles.filterChipText, { color: theme.colors.textMuted }, filter === f.value && { color: theme.colors.primary }]}>{f.label}</Text>
-            </TouchableOpacity>
+          {FILTER_OPTIONS.map((f, i) => (
+            <FilterChip key={f.value} f={f} active={filter === f.value} theme={theme} onPress={() => setFilter(f.value)} />
           ))}
         </ScrollView>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.listContent}>
         {filteredTodos.length === 0 ? (
-          <View style={styles.emptyState}>
+          <Animated.View entering={FadeIn.duration(500).delay(200)} style={styles.emptyState}>
             <Ionicons name="scroll-outline" size={40} color={theme.colors.textMuted} />
             <Text style={[styles.emptyTitle, { color: theme.colors.textSecondary }]}>No quests</Text>
             <Text style={[styles.emptySubtitle, { color: theme.colors.textMuted }]}>Tap + to begin</Text>
-          </View>
+          </Animated.View>
         ) : (
           filteredTodos.map((todo, i) => (
-            <FadeInView key={todo.id} delay={i * 30}>
-              <TodoItem todo={todo} onToggle={toggleTodo} onDelete={deleteTodo} onEdit={(t) => { setEditingTodo(t); setModalVisible(true); }} onToggleSubtask={toggleSubtask} />
-            </FadeInView>
+            <TodoItem key={todo.id} todo={todo} index={i} onToggle={toggleTodo} onDelete={deleteTodo} onEdit={(t) => { setEditingTodo(t); setModalVisible(true); }} onToggleSubtask={toggleSubtask} />
           ))
         )}
       </ScrollView>
 
-      <TouchableOpacity style={[styles.fab, { backgroundColor: theme.colors.primary }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setEditingTodo(null); setModalVisible(true); }} activeOpacity={0.8}>
-        <Ionicons name="add" size={24} color="#FFF" />
-      </TouchableOpacity>
+      <Animated.View entering={ZoomIn.duration(400).delay(200).springify().damping(10)} style={[styles.fabWrap, fabStyle]}>
+        <TouchableOpacity
+          style={[styles.fab, { backgroundColor: theme.colors.primary }]}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setEditingTodo(null); setModalVisible(true); }}
+          onPressIn={() => { fabScale.value = withSpring(0.88, { damping: 10, stiffness: 300 }); }}
+          onPressOut={() => { fabScale.value = withSpring(1, { damping: 10, stiffness: 300 }); }}
+          activeOpacity={1}
+        >
+          <Ionicons name="add" size={24} color="#FFF" />
+        </TouchableOpacity>
+      </Animated.View>
 
       <AddTodoModal visible={modalVisible} onClose={() => { setModalVisible(false); setEditingTodo(null); }} onSave={(d) => { d.id ? updateTodo(d) : addTodo(d); setEditingTodo(null); }} initialData={editingTodo} />
     </View>
@@ -386,12 +456,18 @@ const styles = StyleSheet.create({
   subtaskCheck: { width: 14, height: 14, borderRadius: 7, borderWidth: 1, justifyContent: 'center', alignItems: 'center', marginRight: 6 },
   subtaskText: { fontSize: 12, flex: 1 },
 
+  swipeAction: {
+    width: 80, justifyContent: 'center', alignItems: 'center',
+    borderRadius: 10, marginBottom: 8, marginLeft: 4,
+  },
+  swipeText: { fontSize: 10, color: '#FFF', marginTop: 4, fontWeight: '600' },
+
   emptyState: { alignItems: 'center', paddingTop: 60 },
   emptyTitle: { fontSize: 16, fontWeight: '600', marginTop: 12, marginBottom: 4 },
   emptySubtitle: { fontSize: 13 },
 
+  fabWrap: { position: 'absolute', bottom: 30, right: 24 },
   fab: {
-    position: 'absolute', bottom: 30, right: 24,
     width: 52, height: 52, borderRadius: 26,
     justifyContent: 'center', alignItems: 'center',
     elevation: 4,

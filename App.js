@@ -6,6 +6,10 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, {
+  useSharedValue, useAnimatedStyle, withSpring, withTiming,
+  Easing, interpolate,
+} from 'react-native-reanimated';
 import { AppProvider } from './src/context/AppContext';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 import { requestNotificationPermission } from './src/utils/notifications';
@@ -26,6 +30,77 @@ import GlobalSearch from './src/components/GlobalSearch';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
+const TAB_ICONS = {
+  Dashboard: { active: 'shield', inactive: 'shield-outline' },
+  Quests: { active: 'scroll', inactive: 'scroll-outline' },
+  Calendar: { active: 'calendar', inactive: 'calendar-outline' },
+  Rituals: { active: 'flame', inactive: 'flame-outline' },
+};
+
+function AnimatedTabIcon({ routeName, focused, color }) {
+  const icons = TAB_ICONS[routeName] || { active: 'ellipse', inactive: 'ellipse-outline' };
+  const scale = useSharedValue(focused ? 1 : 0.85);
+
+  useEffect(() => {
+    scale.value = withSpring(focused ? 1 : 0.85, { damping: 15, stiffness: 300 });
+  }, [focused]);
+
+  const style = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: interpolate(scale.value, [0.85, 1], [0.6, 1]),
+  }));
+
+  return (
+    <Animated.View style={style}>
+      <Ionicons name={focused ? icons.active : icons.inactive} size={22} color={color} />
+    </Animated.View>
+  );
+}
+
+function CustomTabBar({ state, descriptors, navigation, theme }) {
+  const indicatorX = useSharedValue(0);
+  const { width } = require('react-native').Dimensions.get('window');
+  const TAB_WIDTH = (width - 48) / 4;
+
+  useEffect(() => {
+    indicatorX.value = withSpring(state.index * TAB_WIDTH, {
+      damping: 20, stiffness: 250, mass: 0.8,
+    });
+  }, [state.index]);
+
+  const indicatorStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: indicatorX.value }],
+  }));
+
+  return (
+    <View style={[styles.tabBar, { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.border }]}>
+      <Animated.View style={[styles.tabIndicator, { backgroundColor: theme.colors.primary }, indicatorStyle]} />
+      {state.routes.map((route, index) => {
+        const { options } = descriptors[route.key];
+        const focused = state.index === index;
+        const color = focused ? theme.colors.primary : theme.colors.textMuted;
+        const onPress = () => {
+          if (route.name === 'More') {
+            return;
+          }
+          navigation.navigate(route.name);
+        };
+
+        if (route.name === 'More') return null;
+
+        return (
+          <TouchableOpacity key={route.key} style={styles.tabItem} onPress={onPress} activeOpacity={0.7}>
+            <AnimatedTabIcon routeName={route.name} focused={focused} color={color} />
+            <Animated.View style={{ opacity: focused ? 1 : 0.5 }}>
+              <Ionicons name={focused ? 'ellipse' : 'ellipse-outline'} size={3} color={color} />
+            </Animated.View>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
 function MainTabs() {
   const { theme } = useTheme();
   const [searchVisible, setSearchVisible] = useState(false);
@@ -33,34 +108,8 @@ function MainTabs() {
   return (
     <>
       <Tab.Navigator
-        screenOptions={({ route }) => ({
-          tabBarIcon: ({ focused }) => {
-            let iconName;
-            switch (route.name) {
-              case 'Dashboard': iconName = focused ? 'shield' : 'shield-outline'; break;
-              case 'Quests': iconName = focused ? 'scroll' : 'scroll-outline'; break;
-              case 'Calendar': iconName = focused ? 'calendar' : 'calendar-outline'; break;
-              case 'Rituals': iconName = focused ? 'flame' : 'flame-outline'; break;
-              case 'More': iconName = focused ? 'grid' : 'grid-outline'; break;
-              default: iconName = 'ellipse';
-            }
-            return <Ionicons name={iconName} size={22} color={focused ? theme.colors.primary : theme.colors.textMuted} />;
-          },
-          tabBarActiveTintColor: theme.colors.primary,
-          tabBarInactiveTintColor: theme.colors.textMuted,
-          tabBarStyle: {
-            backgroundColor: theme.colors.surface,
-            borderTopColor: theme.colors.border,
-            borderTopWidth: 0.5,
-            paddingTop: 6,
-            paddingBottom: Platform.OS === 'ios' ? 24 : 8,
-            height: Platform.OS === 'ios' ? 80 : 60,
-            elevation: 0,
-            shadowOpacity: 0,
-          },
-          tabBarLabelStyle: { fontSize: 9, fontWeight: '600', marginTop: 2 },
-          headerShown: false,
-        })}
+        tabBar={(props) => <CustomTabBar {...props} theme={theme} />}
+        screenOptions={{ headerShown: false }}
       >
         <Tab.Screen name="Dashboard" component={DashboardScreen} />
         <Tab.Screen name="Quests" component={TodoScreen} />
@@ -71,8 +120,9 @@ function MainTabs() {
           component={MoreTab}
           options={{
             tabBarButton: (props) => (
-              <TouchableOpacity {...props} onPress={() => setSearchVisible(true)} style={props.style}>
+              <TouchableOpacity {...props} onPress={() => setSearchVisible(true)} style={[props.style, styles.moreBtn]}>
                 <Ionicons name="grid-outline" size={22} color={theme.colors.textMuted} />
+                <Ionicons name="ellipse-outline" size={3} color={theme.colors.textMuted} style={{ marginTop: 4 }} />
               </TouchableOpacity>
             ),
           }}
@@ -132,3 +182,37 @@ function AppContent() {
     </NavigationContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  tabBar: {
+    flexDirection: 'row',
+    paddingTop: 6,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 8,
+    height: Platform.OS === 'ios' ? 80 : 60,
+    borderTopWidth: 0.5,
+    elevation: 0,
+    shadowOpacity: 0,
+    position: 'relative',
+  },
+  tabIndicator: {
+    position: 'absolute',
+    top: 0,
+    width: 40,
+    height: 2,
+    borderRadius: 1,
+    left: 24,
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 6,
+    gap: 4,
+  },
+  moreBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 6,
+    gap: 4,
+  },
+});

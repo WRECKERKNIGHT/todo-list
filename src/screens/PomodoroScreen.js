@@ -1,16 +1,91 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Animated, Easing, Alert, Platform,
+  View, Text, StyleSheet, TouchableOpacity, Alert, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../theme/ThemeContext';
 import * as Haptics from 'expo-haptics';
+import Animated, {
+  FadeIn, FadeInDown, FadeInUp, ZoomIn,
+  useSharedValue, useAnimatedStyle, withSpring, withTiming,
+  withRepeat, withSequence, Easing, interpolate,
+} from 'react-native-reanimated';
 
 const WORK_DURATION = 25 * 60;
 const BREAK_DURATION = 5 * 60;
 const LONG_BREAK_DURATION = 15 * 60;
 const serifFont = Platform.OS === 'ios' ? 'Georgia' : 'serif';
+
+function TimerRing({ progress, isBreak, theme }) {
+  const ringSv = useSharedValue(0);
+
+  useEffect(() => {
+    ringSv.value = withTiming(progress, { duration: 500, easing: Easing.out(Easing.cubic) });
+  }, [progress]);
+
+  const pulseSv = useSharedValue(1);
+
+  useEffect(() => {
+    pulseSv.value = withRepeat(
+      withSequence(
+        withTiming(1.015, { duration: 2000, easing: Easing.inOut(Easing.sin) }),
+        withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.sin) }),
+      ),
+      -1, false,
+    );
+  }, []);
+
+  const pulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseSv.value }],
+  }));
+
+  const glowOpacity = interpolate(progress, [0, 1], [0.05, 0.2]);
+
+  return (
+    <Animated.View entering={ZoomIn.duration(600).springify().damping(12).stiffness(80)} style={styles.timerRing}>
+      <Animated.View style={[{ width: 260, height: 260, borderRadius: 130, justifyContent: 'center', alignItems: 'center' }, pulseStyle]}>
+        <View style={[styles.timerOuter, { borderColor: isBreak ? theme.colors.success + '25' : theme.colors.primary + '25' }]}>
+          <View style={[styles.glow, { backgroundColor: isBreak ? theme.colors.success : theme.colors.primary, opacity: glowOpacity }]} />
+          <View style={[styles.timerInner, { backgroundColor: theme.colors.background }]}>
+            <Ionicons name={isBreak ? 'cafe-outline' : 'flame-outline'} size={24} color={isBreak ? theme.colors.success : theme.colors.primary} style={{ marginBottom: 12 }} />
+            <AnimatedTimerText isBreak={isBreak} theme={theme} />
+            <Text style={[styles.timerLabel, { color: theme.colors.textMuted }]}>{isBreak ? 'Break' : 'Focus'}</Text>
+          </View>
+        </View>
+      </Animated.View>
+    </Animated.View>
+  );
+}
+
+function AnimatedTimerText({ isBreak, theme }) {
+  return (
+    <Text style={[styles.timerText, { color: theme.colors.text }]}>
+      {null}
+    </Text>
+  );
+}
+
+function ProgressDots({ sessions, theme }) {
+  return (
+    <View style={styles.progressDots}>
+      {[0, 1, 2, 3].map(i => {
+        const active = i < (sessions % 4);
+        return (
+          <Animated.View
+            key={i}
+            entering={FadeIn.delay(i * 100).duration(300)}
+          >
+            <View style={[styles.progressDot, {
+              backgroundColor: active ? theme.colors.primary : theme.colors.surfaceLight,
+              transform: [{ scale: active ? 1.15 : 1 }],
+            }]} />
+          </Animated.View>
+        );
+      })}
+    </View>
+  );
+}
 
 export default function PomodoroScreen() {
   const { theme } = useTheme();
@@ -19,7 +94,12 @@ export default function PomodoroScreen() {
   const [isRunning, setIsRunning] = useState(false);
   const [isBreak, setIsBreak] = useState(false);
   const [sessions, setSessions] = useState(0);
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  const playBtnScale = useSharedValue(1);
+  const controlBtnScale = useSharedValue(1);
+
+  const playBtnStyle = useAnimatedStyle(() => ({ transform: [{ scale: playBtnScale.value }] }));
+  const controlBtnStyle = useAnimatedStyle(() => ({ transform: [{ scale: controlBtnScale.value }] }));
 
   useEffect(() => {
     let interval;
@@ -30,19 +110,6 @@ export default function PomodoroScreen() {
     }
     return () => clearInterval(interval);
   }, [isRunning, timeLeft]);
-
-  useEffect(() => {
-    if (isRunning) {
-      const pulse = Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1.02, duration: 1500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        ])
-      );
-      pulse.start();
-      return () => pulse.stop();
-    }
-  }, [isRunning]);
 
   const handleTimerComplete = () => {
     setIsRunning(false);
@@ -66,60 +133,49 @@ export default function PomodoroScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={styles.header}>
+      <Animated.View entering={FadeIn.duration(400)} style={styles.header}>
         <Text style={[styles.title, { color: theme.colors.text }]}>Focus</Text>
         <View style={[styles.sessionBadge, { backgroundColor: theme.colors.surface }]}>
           <Ionicons name="hourglass-outline" size={14} color={theme.colors.accent} />
           <Text style={[styles.sessionText, { color: theme.colors.accent }]}>{sessions} sessions</Text>
         </View>
-      </View>
+      </Animated.View>
 
       <View style={styles.timerContainer}>
-        <Animated.View style={[styles.timerRing, { transform: [{ scale: pulseAnim }] }]}>
-          <View style={[styles.timerOuter, { borderColor: isBreak ? theme.colors.success + '25' : theme.colors.primary + '25' }]}>
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { backgroundColor: isBreak ? theme.colors.success : theme.colors.primary, width: `${progress * 100}%` }]} />
-            </View>
-            <View style={[styles.timerInner, { backgroundColor: theme.colors.background }]}>
-              <Ionicons name={isBreak ? 'cafe-outline' : 'flame-outline'} size={24} color={isBreak ? theme.colors.success : theme.colors.primary} style={{ marginBottom: 12 }} />
-              <Text style={[styles.timerText, { color: theme.colors.text }]}>{formatTime(timeLeft)}</Text>
-              <Text style={[styles.timerLabel, { color: theme.colors.textMuted }]}>{isBreak ? 'Break' : 'Focus'}</Text>
-            </View>
-          </View>
-        </Animated.View>
-
-        <View style={styles.progressDots}>
-          {[0, 1, 2, 3].map(i => (
-            <View key={i} style={[styles.progressDot, { backgroundColor: i < (sessions % 4) ? theme.colors.primary : theme.colors.surfaceLight }]} />
-          ))}
-        </View>
+        <TimerRing progress={progress} isBreak={isBreak} theme={theme} />
+        <ProgressDots sessions={sessions} theme={theme} />
       </View>
 
-      <View style={styles.controls}>
+      <Animated.View entering={FadeInUp.duration(500).delay(300).springify().damping(16)} style={styles.controls}>
         <TouchableOpacity style={[styles.controlBtn, { backgroundColor: theme.colors.surface }]} onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          controlBtnScale.value = withSequence(withSpring(0.85, { damping: 10, stiffness: 400 }), withSpring(1, { damping: 10, stiffness: 400 }));
           setIsRunning(false);
           setTimeLeft(isBreak ? BREAK_DURATION : WORK_DURATION);
         }}>
           <Ionicons name="refresh" size={20} color={theme.colors.textSecondary} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.mainControl, { backgroundColor: isRunning ? theme.colors.accent : theme.colors.primary }]} onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          setIsRunning(!isRunning);
-        }}>
-          <Ionicons name={isRunning ? 'pause' : 'play'} size={28} color="#FFF" style={{ marginLeft: isRunning ? 0 : 3 }} />
-        </TouchableOpacity>
+        <Animated.View style={playBtnStyle}>
+          <TouchableOpacity style={[styles.mainControl, { backgroundColor: isRunning ? theme.colors.accent : theme.colors.primary }]} onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            playBtnScale.value = withSequence(withSpring(0.88, { damping: 10, stiffness: 300 }), withSpring(1, { damping: 10, stiffness: 300 }));
+            setIsRunning(!isRunning);
+          }}>
+            <Ionicons name={isRunning ? 'pause' : 'play'} size={28} color="#FFF" style={{ marginLeft: isRunning ? 0 : 3 }} />
+          </TouchableOpacity>
+        </Animated.View>
 
         <TouchableOpacity style={[styles.controlBtn, { backgroundColor: theme.colors.surface }]} onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          controlBtnScale.value = withSequence(withSpring(0.85, { damping: 10, stiffness: 400 }), withSpring(1, { damping: 10, stiffness: 400 }));
           setIsBreak(false); setTimeLeft(WORK_DURATION); setIsRunning(false);
         }}>
           <Ionicons name="stop" size={20} color={theme.colors.textSecondary} />
         </TouchableOpacity>
-      </View>
+      </Animated.View>
 
-      <View style={[styles.settingsCard, { backgroundColor: theme.colors.surface }]}>
+      <Animated.View entering={FadeInDown.duration(500).delay(400).springify().damping(16)} style={[styles.settingsCard, { backgroundColor: theme.colors.surface }]}>
         {[
           { icon: 'flame-outline', label: 'Work', value: '25 min', color: theme.colors.primary },
           { icon: 'cafe-outline', label: 'Break', value: '5 min', color: theme.colors.success },
@@ -131,7 +187,7 @@ export default function PomodoroScreen() {
             <Text style={[styles.settingValue, { color: theme.colors.text }]}>{item.value}</Text>
           </View>
         ))}
-      </View>
+      </Animated.View>
     </View>
   );
 }
@@ -151,12 +207,12 @@ const styles = StyleSheet.create({
   timerOuter: {
     width: 240, height: 240, borderRadius: 120,
     borderWidth: 2, justifyContent: 'center', alignItems: 'center',
+    overflow: 'hidden',
   },
-  progressTrack: {
-    position: 'absolute', top: 0, left: 0, right: 0, height: 3,
-    borderRadius: 1.5, overflow: 'hidden', backgroundColor: 'transparent',
+  glow: {
+    position: 'absolute', width: 280, height: 280, borderRadius: 140,
+    top: -20, left: -20,
   },
-  progressFill: { height: 3, borderRadius: 1.5 },
   timerInner: {
     width: 210, height: 210, borderRadius: 105,
     justifyContent: 'center', alignItems: 'center',

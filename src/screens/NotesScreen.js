@@ -1,12 +1,16 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Modal, Animated, Easing, Alert, Dimensions, Platform,
+  Modal, Alert, Dimensions, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../theme/ThemeContext';
-import { FadeInView } from '../components/MedievalUI';
+import Animated, {
+  FadeIn, FadeInDown, FadeInUp, FadeOutLeft,
+  useSharedValue, useAnimatedStyle, withSpring, withSequence,
+  BounceIn, Layout, ZoomIn,
+} from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
 const { width } = Dimensions.get('window');
@@ -20,35 +24,49 @@ const MOODS = [
   { emoji: '😢', label: 'Bad', value: 1, color: '#C25B4E' },
 ];
 
-function NoteCard({ note, onEdit, onDelete }) {
+function NoteCard({ note, onEdit, onDelete, index }) {
   const { theme } = useTheme();
   const moodInfo = MOODS.find(m => m.value === note.mood);
+  const scale = useSharedValue(1);
+  const s = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
   return (
-    <TouchableOpacity onPress={() => onEdit(note)} activeOpacity={0.7}>
-      <View style={[styles.noteCard, { backgroundColor: theme.colors.surface, borderLeftColor: moodInfo?.color || theme.colors.primary }]}>
-        <View style={styles.noteHeader}>
-          {moodInfo && <Text style={styles.noteMood}>{moodInfo.emoji}</Text>}
-          <Text style={[styles.noteTitle, { color: theme.colors.text }]} numberOfLines={1}>{note.title}</Text>
-          <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); onDelete(note.id); }}>
-            <Ionicons name="trash-outline" size={14} color={theme.colors.textMuted} />
-          </TouchableOpacity>
+    <Animated.View
+      entering={FadeInDown.duration(400).delay(index * 50).springify().damping(16).stiffness(110)}
+      exiting={FadeOutLeft.duration(300)}
+      layout={Layout.springify().damping(18)}
+      style={s}
+    >
+      <TouchableOpacity
+        onPress={() => onEdit(note)}
+        onPressIn={() => { scale.value = withSpring(0.98, { damping: 15, stiffness: 400 }); }}
+        onPressOut={() => { scale.value = withSpring(1, { damping: 15, stiffness: 400 }); }}
+        activeOpacity={1}
+      >
+        <View style={[styles.noteCard, { backgroundColor: theme.colors.surface, borderLeftColor: moodInfo?.color || theme.colors.primary }]}>
+          <View style={styles.noteHeader}>
+            {moodInfo && <Text style={styles.noteMood}>{moodInfo.emoji}</Text>}
+            <Text style={[styles.noteTitle, { color: theme.colors.text }]} numberOfLines={1}>{note.title}</Text>
+            <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); onDelete(note.id); }}>
+              <Ionicons name="trash-outline" size={14} color={theme.colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+          <Text style={[styles.notePreview, { color: theme.colors.textSecondary }]} numberOfLines={2}>{note.content}</Text>
+          <View style={styles.noteFooter}>
+            <Text style={[styles.noteDate, { color: theme.colors.textMuted }]}>{new Date(note.createdAt).toLocaleDateString()}</Text>
+            {note.tags && note.tags.length > 0 && (
+              <View style={styles.tagRow}>
+                {note.tags.slice(0, 2).map(tag => (
+                  <View key={tag} style={[styles.tag, { backgroundColor: theme.colors.primary + '12' }]}>
+                    <Text style={[styles.tagText, { color: theme.colors.primary }]}>{tag}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
         </View>
-        <Text style={[styles.notePreview, { color: theme.colors.textSecondary }]} numberOfLines={2}>{note.content}</Text>
-        <View style={styles.noteFooter}>
-          <Text style={[styles.noteDate, { color: theme.colors.textMuted }]}>{new Date(note.createdAt).toLocaleDateString()}</Text>
-          {note.tags && note.tags.length > 0 && (
-            <View style={styles.tagRow}>
-              {note.tags.slice(0, 2).map(tag => (
-                <View key={tag} style={[styles.tag, { backgroundColor: theme.colors.primary + '12' }]}>
-                  <Text style={[styles.tagText, { color: theme.colors.primary }]}>{tag}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
@@ -59,15 +77,13 @@ function AddNoteModal({ visible, onClose, onSave, initialData }) {
   const [mood, setMood] = useState(null);
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState([]);
-  const slideAnim = useRef(new Animated.Value(0)).current;
   const isEditing = !!initialData;
 
   useEffect(() => {
     if (visible) {
       if (initialData) { setTitle(initialData.title || ''); setContent(initialData.content || ''); setMood(initialData.mood || null); setTags(initialData.tags || []); }
       else { setTitle(''); setContent(''); setMood(null); setTags([]); }
-      Animated.spring(slideAnim, { toValue: 1, friction: 8, tension: 40, useNativeDriver: true }).start();
-    } else { slideAnim.setValue(0); }
+    }
   }, [visible, initialData]);
 
   const handleSave = () => {
@@ -83,49 +99,61 @@ function AddNoteModal({ visible, onClose, onSave, initialData }) {
 
   return (
     <Modal visible={visible} transparent animationType="none">
-      <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onClose}>
-        <Animated.View style={[styles.modalContent, { backgroundColor: theme.colors.surface }, { transform: [{ translateY: slideAnim.interpolate({ inputRange: [0, 1], outputRange: [400, 0] }) }] }]}>
-          <TouchableOpacity activeOpacity={1}>
-            <View style={styles.modalHandle} />
-            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>{isEditing ? 'Edit Entry' : 'New Entry'}</Text>
+      <Animated.View entering={FadeIn.duration(200)} style={styles.modalOverlay}>
+        <TouchableOpacity activeOpacity={1} style={{ flex: 1 }} onPress={onClose} />
+        <Animated.View entering={FadeInDown.springify().damping(16).stiffness(120)} style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
+          <View style={styles.modalHandle} />
+          <Text style={[styles.modalTitle, { color: theme.colors.text }]}>{isEditing ? 'Edit Entry' : 'New Entry'}</Text>
 
-            <Text style={[styles.modalLabel, { color: theme.colors.textMuted }]}>Mood</Text>
-            <View style={styles.moodRow}>
-              {MOODS.map(m => (
-                <TouchableOpacity key={m.value} style={[styles.moodBtn, { backgroundColor: theme.colors.surfaceLight }, mood === m.value && { backgroundColor: m.color + '15', borderColor: m.color }]} onPress={() => setMood(m.value)}>
-                  <Text style={styles.moodEmoji}>{m.emoji}</Text>
-                  <Text style={[styles.moodLabel, { color: theme.colors.textMuted }, mood === m.value && { color: m.color }]}>{m.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+          <Text style={[styles.modalLabel, { color: theme.colors.textMuted }]}>Mood</Text>
+          <View style={styles.moodRow}>
+            {MOODS.map(m => {
+              const isActive = mood === m.value;
+              const btnScale = useSharedValue(1);
+              const btnS = useAnimatedStyle(() => ({ transform: [{ scale: btnScale.value }] }));
+              return (
+                <Animated.View key={m.value} style={btnS}>
+                  <TouchableOpacity
+                    style={[styles.moodBtn, { backgroundColor: theme.colors.surfaceLight }, isActive && { backgroundColor: m.color + '15', borderColor: m.color }]}
+                    onPress={() => { btnScale.value = withSequence(withSpring(0.85, { damping: 10, stiffness: 400 }), withSpring(1, { damping: 10, stiffness: 400 })); setMood(m.value); }}
+                    activeOpacity={1}
+                  >
+                    <Text style={styles.moodEmoji}>{m.emoji}</Text>
+                    <Text style={[styles.moodLabel, { color: theme.colors.textMuted }, isActive && { color: m.color }]}>{m.label}</Text>
+                  </TouchableOpacity>
+                </Animated.View>
+              );
+            })}
+          </View>
 
-            <TextInput style={[styles.input, { backgroundColor: theme.colors.surfaceLight, color: theme.colors.text, borderColor: theme.colors.border }]} placeholder="Title" placeholderTextColor={theme.colors.textMuted} value={title} onChangeText={setTitle} autoFocus />
-            <TextInput style={[styles.input, styles.textArea, { backgroundColor: theme.colors.surfaceLight, color: theme.colors.text, borderColor: theme.colors.border }]} placeholder="Write your thoughts..." placeholderTextColor={theme.colors.textMuted} value={content} onChangeText={setContent} multiline textAlignVertical="top" />
+          <TextInput style={[styles.input, { backgroundColor: theme.colors.surfaceLight, color: theme.colors.text, borderColor: theme.colors.border }]} placeholder="Title" placeholderTextColor={theme.colors.textMuted} value={title} onChangeText={setTitle} autoFocus />
+          <TextInput style={[styles.input, styles.textArea, { backgroundColor: theme.colors.surfaceLight, color: theme.colors.text, borderColor: theme.colors.border }]} placeholder="Write your thoughts..." placeholderTextColor={theme.colors.textMuted} value={content} onChangeText={setContent} multiline textAlignVertical="top" />
 
-            <Text style={[styles.modalLabel, { color: theme.colors.textMuted }]}>Tags</Text>
-            <View style={styles.tagInputRow}>
-              <TextInput style={[styles.tagInput, { backgroundColor: theme.colors.surfaceLight, color: theme.colors.text, borderColor: theme.colors.border }]} placeholder="Add tag..." placeholderTextColor={theme.colors.textMuted} value={tagInput} onChangeText={setTagInput} onSubmitEditing={addTag} />
-              <TouchableOpacity style={[styles.tagAddBtn, { backgroundColor: theme.colors.primary }]} onPress={addTag}>
-                <Ionicons name="add" size={16} color="#FFF" />
-              </TouchableOpacity>
-            </View>
-            {tags.length > 0 && (
-              <View style={styles.tagsList}>
-                {tags.map(tag => (
-                  <TouchableOpacity key={tag} style={[styles.tagChip, { backgroundColor: theme.colors.primary + '12' }]} onPress={() => setTags(tags.filter(t => t !== tag))}>
+          <Text style={[styles.modalLabel, { color: theme.colors.textMuted }]}>Tags</Text>
+          <View style={styles.tagInputRow}>
+            <TextInput style={[styles.tagInput, { backgroundColor: theme.colors.surfaceLight, color: theme.colors.text, borderColor: theme.colors.border }]} placeholder="Add tag..." placeholderTextColor={theme.colors.textMuted} value={tagInput} onChangeText={setTagInput} onSubmitEditing={addTag} />
+            <TouchableOpacity style={[styles.tagAddBtn, { backgroundColor: theme.colors.primary }]} onPress={addTag}>
+              <Ionicons name="add" size={16} color="#FFF" />
+            </TouchableOpacity>
+          </View>
+          {tags.length > 0 && (
+            <View style={styles.tagsList}>
+              {tags.map(tag => (
+                <Animated.View key={tag} entering={BounceIn.duration(200)}>
+                  <TouchableOpacity style={[styles.tagChip, { backgroundColor: theme.colors.primary + '12' }]} onPress={() => setTags(tags.filter(t => t !== tag))}>
                     <Text style={[styles.tagChipText, { color: theme.colors.primary }]}>{tag}</Text>
                     <Ionicons name="close-circle" size={12} color={theme.colors.primary} />
                   </TouchableOpacity>
-                ))}
-              </View>
-            )}
+                </Animated.View>
+              ))}
+            </View>
+          )}
 
-            <TouchableOpacity style={[styles.saveBtn, { borderColor: theme.colors.primary + '30' }]} onPress={handleSave}>
-              <Text style={[styles.saveBtnText, { color: theme.colors.primary }]}>{isEditing ? 'Update' : 'Save'}</Text>
-            </TouchableOpacity>
+          <TouchableOpacity style={[styles.saveBtn, { borderColor: theme.colors.primary + '30' }]} onPress={handleSave}>
+            <Text style={[styles.saveBtnText, { color: theme.colors.primary }]}>{isEditing ? 'Update' : 'Save'}</Text>
           </TouchableOpacity>
         </Animated.View>
-      </TouchableOpacity>
+      </Animated.View>
     </Modal>
   );
 }
@@ -148,23 +176,23 @@ export default function NotesScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.listContent}>
         {state.notes.length === 0 ? (
-          <View style={styles.emptyState}>
+          <Animated.View entering={FadeIn.duration(500).delay(200)} style={styles.emptyState}>
             <Ionicons name="book-outline" size={40} color={theme.colors.textMuted} />
             <Text style={[styles.emptyTitle, { color: theme.colors.textSecondary }]}>No entries</Text>
             <Text style={[styles.emptySubtitle, { color: theme.colors.textMuted }]}>Start writing</Text>
-          </View>
+          </Animated.View>
         ) : (
           state.notes.map((note, i) => (
-            <FadeInView key={note.id} delay={i * 30}>
-              <NoteCard note={note} onEdit={(n) => { setEditingNote(n); setModalVisible(true); }} onDelete={deleteNote} />
-            </FadeInView>
+            <NoteCard key={note.id} note={note} index={i} onEdit={(n) => { setEditingNote(n); setModalVisible(true); }} onDelete={deleteNote} />
           ))
         )}
       </ScrollView>
 
-      <TouchableOpacity style={[styles.fab, { backgroundColor: theme.colors.secondary }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setEditingNote(null); setModalVisible(true); }} activeOpacity={0.8}>
-        <Ionicons name="add" size={24} color="#FFF" />
-      </TouchableOpacity>
+      <Animated.View entering={ZoomIn.duration(400).delay(200).springify().damping(10)}>
+        <TouchableOpacity style={[styles.fab, { backgroundColor: theme.colors.secondary }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setEditingNote(null); setModalVisible(true); }} activeOpacity={0.8}>
+          <Ionicons name="add" size={24} color="#FFF" />
+        </TouchableOpacity>
+      </Animated.View>
 
       <AddNoteModal visible={modalVisible} onClose={() => { setModalVisible(false); setEditingNote(null); }} onSave={(d) => { d.id ? updateNote(d) : addNote(d); setEditingNote(null); }} initialData={editingNote} />
     </View>
