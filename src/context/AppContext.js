@@ -94,6 +94,18 @@ const ACHIEVEMENTS = [
   { id: 'time_10h', title: 'Time Lord', desc: 'Track 10 hours of work', icon: 'hourglass', unlocked: false },
   { id: 'kanban_user', title: 'Board Master', desc: 'Move 10 tasks through Kanban columns', icon: 'grid', unlocked: false },
   { id: 'tagger', title: 'Tag Master', desc: 'Apply tags to 20 tasks', icon: 'pricetag', unlocked: false },
+  { id: 'eisenhower_first', title: 'Strategist', desc: 'Use the Eisenhower Matrix', icon: 'grid', unlocked: false },
+  { id: 'eisenhower_10', title: 'Master Planner', desc: 'Assign 10 tasks to matrix', icon: 'grid', unlocked: false },
+  { id: 'analytics_viewed', title: 'Data Driven', desc: 'View your analytics', icon: 'bar-chart', unlocked: false },
+  { id: 'mystery_box_first', title: 'Lucky Draw', desc: 'Open your first mystery box', icon: 'gift', unlocked: false },
+  { id: 'mystery_box_legendary', title: 'Jackpot', desc: 'Open a Legendary mystery box', icon: 'star', unlocked: false },
+  { id: 'daily_reward_7', title: 'Loyal Knight', desc: '7-day login streak', icon: 'flame', unlocked: false },
+  { id: 'seasonal_complete', title: 'Event Champion', desc: 'Complete a seasonal event', icon: 'trophy', unlocked: false },
+  { id: 'focus_30', title: 'Zen Master', desc: 'Use Focus Music 30 times', icon: 'headset', unlocked: false },
+  { id: 'planner_user', title: 'Week Warrior', desc: 'Plan tasks for a full week', icon: 'calendar', unlocked: false },
+  { id: 'discipline_elite', title: 'Elite Discipline', desc: 'Reach Elite rank', icon: 'shield-checkmark', unlocked: false },
+  { id: 'perfect_month', title: 'Perfect Month', desc: '30-day streak', icon: 'ribbon', unlocked: false },
+  { id: 'coins_1000', title: 'Tycoon', desc: 'Accumulate 1000 coins', icon: 'cash', unlocked: false },
 ];
 
 const initialState = {
@@ -703,6 +715,13 @@ export function AppProvider({ children }) {
     if (totalTime >= 36000000) dispatch({ type: 'UNLOCK_ACHIEVEMENT', payload: 'time_10h' });
     if (currentState.kanbanMoved >= 10) dispatch({ type: 'UNLOCK_ACHIEVEMENT', payload: 'kanban_user' });
     if (currentState.tagsApplied >= 20) dispatch({ type: 'UNLOCK_ACHIEVEMENT', payload: 'tagger' });
+    if (currentState.dailyLoginStreak >= 7) dispatch({ type: 'UNLOCK_ACHIEVEMENT', payload: 'daily_reward_7' });
+    if (currentState.disciplineRank === 'Elite' || currentState.disciplineRank === 'Legendary') dispatch({ type: 'UNLOCK_ACHIEVEMENT', payload: 'discipline_elite' });
+    if (currentState.openedBoxes?.some(b => b.tier === 'legendary')) dispatch({ type: 'UNLOCK_ACHIEVEMENT', payload: 'mystery_box_legendary' });
+    if (currentState.openedBoxes?.length >= 1) dispatch({ type: 'UNLOCK_ACHIEVEMENT', payload: 'mystery_box_first' });
+    if (currentState.seasonalEventCompleted) dispatch({ type: 'UNLOCK_ACHIEVEMENT', payload: 'seasonal_complete' });
+    if (currentState.streakDays >= 30 || currentState.longestStreak >= 30) dispatch({ type: 'UNLOCK_ACHIEVEMENT', payload: 'perfect_month' });
+    if (currentState.coins >= 1000) dispatch({ type: 'UNLOCK_ACHIEVEMENT', payload: 'coins_1000' });
   };
 
   // --- Stats ---

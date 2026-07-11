@@ -36,6 +36,8 @@ import EisenhowerMatrix from './src/screens/EisenhowerMatrix';
 import AnalyticsScreen from './src/screens/AnalyticsScreen';
 import GamificationHub from './src/screens/GamificationHub';
 import WidgetsScreen from './src/screens/WidgetsScreen';
+import FocusMusicScreen from './src/screens/FocusMusicScreen';
+import WeeklyPlannerScreen from './src/screens/WeeklyPlannerScreen';
 import GlobalSearch from './src/components/GlobalSearch';
 
 const Stack = createNativeStackNavigator();
@@ -202,6 +204,8 @@ function AppContent() {
         <Stack.Screen name="Analytics" component={AnalyticsScreen} />
         <Stack.Screen name="GamificationHub" component={GamificationHub} />
         <Stack.Screen name="Widgets" component={WidgetsScreen} />
+        <Stack.Screen name="FocusMusic" component={FocusMusicScreen} />
+        <Stack.Screen name="WeeklyPlanner" component={WeeklyPlannerScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

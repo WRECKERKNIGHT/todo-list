@@ -37,16 +37,22 @@ const { width, height } = Dimensions.get('window');
 const serifFont = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 
 const FEATURES = [
-  { icon: 'scroll', name: 'Quests', desc: 'Conquer your tasks', color: '#C9A84C' },
-  { icon: 'flame', name: 'Habits', desc: 'Build daily rituals', color: '#E74C3C' },
-  { icon: 'timer', name: 'Focus Timer', desc: 'Deep work sessions', color: '#3498DB' },
-  { icon: 'shield-checkmark', name: 'Discipline', desc: 'Stay consistent', color: '#27AE60' },
-  { icon: 'trophy', name: 'Challenges', desc: 'Push your limits', color: '#F39C12' },
-  { icon: 'grid', name: 'Kanban', desc: 'Visual workflow', color: '#9B59B6' },
+  { icon: 'scroll', title: 'Quests', desc: 'Task management', color: '#C9A84C', screen: 'Main' },
+  { icon: 'flame', title: 'Habits', desc: 'Daily rituals', color: '#E74C3C', screen: 'Main' },
+  { icon: 'timer', title: 'Focus', desc: 'Pomodoro timer', color: '#3498DB', screen: 'Pomodoro' },
+  { icon: 'shield-checkmark', title: 'Discipline', desc: 'Consistency rank', color: '#27AE60', screen: 'Discipline' },
+  { icon: 'trophy', title: 'Challenges', desc: 'Daily rewards', color: '#F39C12', screen: 'Challenges' },
+  { icon: 'columns', title: 'Kanban', desc: 'Board view', color: '#9B59B6', screen: 'Kanban' },
+  { icon: 'bar-chart', title: 'Analytics', desc: 'Productivity data', color: '#2ECC71', screen: 'Analytics' },
+  { icon: 'grid', title: 'Matrix', desc: 'Priority planning', color: '#E74C3C', screen: 'EisenhowerMatrix' },
+  { icon: 'gift', title: 'Rewards', desc: 'Mystery boxes', color: '#C9A84C', screen: 'GamificationHub' },
+  { icon: 'headset', title: 'Focus Music', desc: 'Ambient sounds', color: '#3498DB', screen: 'FocusMusic' },
+  { icon: 'calendar', title: 'Planner', desc: 'Weekly layout', color: '#27AE60', screen: 'WeeklyPlanner' },
+  { icon: 'apps', title: 'Widgets', desc: 'Custom dashboard', color: '#9B59B6', screen: 'Widgets' },
 ];
 
 const STATS = [
-  { number: '10+', label: 'Features', icon: 'apps' },
+  { number: '12+', label: 'Features', icon: 'apps' },
   { number: '∞', label: 'Theme Engine', icon: 'color-palette' },
   { number: '🏆', label: 'Gamified', icon: 'ribbon' },
   { number: '📊', label: 'Analytics', icon: 'analytics' },
@@ -230,7 +236,7 @@ function FeatureCard({ feature, index, theme }) {
         >
           <Ionicons name={feature.icon} size={24} color={feature.color} />
         </View>
-        <Text style={[styles.featureName, { color: theme.colors.text }]}>{feature.name}</Text>
+        <Text style={[styles.featureName, { color: theme.colors.text }]}>{feature.title}</Text>
         <Text style={[styles.featureDesc, { color: theme.colors.textSecondary }]}>{feature.desc}</Text>
       </TouchableOpacity>
     </Animated.View>
@@ -246,7 +252,7 @@ function FeaturesSection({ theme, isDark }) {
 
       <View style={styles.featureGrid}>
         {FEATURES.map((feature, index) => (
-          <FeatureCard key={feature.name} feature={feature} index={index} theme={theme} />
+          <FeatureCard key={feature.title} feature={feature} index={index} theme={theme} />
         ))}
       </View>
     </View>
@@ -447,7 +453,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   featureCard: {
-    width: (width - 52) / 2,
+    width: (width - 56) / 3,
     borderRadius: 16,
     padding: 18,
     borderWidth: 1,

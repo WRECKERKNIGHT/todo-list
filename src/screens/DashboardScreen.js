@@ -354,7 +354,9 @@ function QuickLinksWidget({ todayTodos, state, navigation, delay }) {
       <QuickLink title="Analytics" subtitle="Productivity data" icon="bar-chart-outline" color={theme.colors.success} delay={delay + 180} onPress={() => navigation.navigate('Analytics')} />
       <QuickLink title="Rewards Hub" subtitle="Daily rewards & boxes" icon="gift-outline" color={theme.colors.gold} delay={delay + 190} onPress={() => navigation.navigate('GamificationHub')} />
       <QuickLink title="Widgets" subtitle="Dashboard widgets" icon="apps-outline" color={theme.colors.secondary} delay={delay + 200} onPress={() => navigation.navigate('Widgets')} />
-      <QuickLink title="Settings" subtitle="Configure" icon="settings-outline" color={theme.colors.textMuted} delay={delay + 210} onPress={() => navigation.navigate('Settings')} />
+      <QuickLink title="Focus Music" subtitle="Ambient sounds" icon="headset-outline" color={theme.colors.secondary} delay={delay + 210} onPress={() => navigation.navigate('FocusMusic')} />
+      <QuickLink title="Weekly Plan" subtitle="Plan your week" icon="calendar-outline" color={theme.colors.primary} delay={delay + 220} onPress={() => navigation.navigate('WeeklyPlanner')} />
+      <QuickLink title="Settings" subtitle="Configure" icon="settings-outline" color={theme.colors.textMuted} delay={delay + 230} onPress={() => navigation.navigate('Settings')} />
     </View>
   );
 }
