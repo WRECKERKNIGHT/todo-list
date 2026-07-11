@@ -342,6 +342,7 @@ function QuickLinksWidget({ todayTodos, state, navigation, delay }) {
       <QuickLink title="Quests" subtitle={`${todayTodos.length} today`} icon="scroll-outline" color={theme.colors.gold} count={todayTodos.length} delay={delay} onPress={() => navigation.navigate('Main', { screen: 'Quests' })} />
       <QuickLink title="Kanban Board" subtitle="Drag & organize" icon="columns-outline" color={theme.colors.secondary} delay={delay + 20} onPress={() => navigation.navigate('Kanban')} />
       <QuickLink title="Daily Challenge" subtitle="Earn rewards" icon="flash-outline" color={theme.colors.error} delay={delay + 40} onPress={() => navigation.navigate('Challenges')} />
+      <QuickLink title="Discipline" subtitle="Consistency & rank" icon="shield-checkmark-outline" color={theme.colors.primary} delay={delay + 50} onPress={() => navigation.navigate('Discipline')} />
       <QuickLink title="Focus Timer" subtitle="Pomodoro" icon="timer-outline" color={theme.colors.secondary} delay={delay + 60} onPress={() => navigation.navigate('Pomodoro')} />
       <QuickLink title="Time Tracking" subtitle="Track time" icon="stopwatch-outline" color={theme.colors.success} delay={delay + 80} onPress={() => navigation.navigate('TimeTracking')} />
       <QuickLink title="Heatmap" subtitle="365-day view" icon="grid-outline" color={theme.colors.gold} delay={delay + 100} onPress={() => navigation.navigate('Heatmap')} />

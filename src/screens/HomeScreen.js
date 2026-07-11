@@ -1,185 +1,546 @@
 import React, { useEffect } from 'react';
 import {
-  View, Text, StyleSheet, Dimensions, TouchableOpacity, Platform,
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Platform,
+  Dimensions,
+  StatusBar,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Animated, {
-  FadeIn, FadeInDown, FadeInUp, FadeInLeft, FadeInRight,
-  ZoomIn, BounceIn, SlideInDown, useSharedValue, useAnimatedStyle,
-  withSpring, withTiming, withRepeat, withSequence, Easing,
-  interpolate, Extrapolation, LightSpeedInLeft, FlipInYUp,
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  withRepeat,
+  withSequence,
+  Easing,
+  interpolate,
+  FadeIn,
+  FadeInDown,
+  FadeInUp,
+  FadeInLeft,
+  ZoomIn,
+  BounceIn,
 } from 'react-native-reanimated';
 import { useTheme } from '../theme/ThemeContext';
-import { OrnamentalDivider, BreathingGlow } from '../components/MedievalUI';
+import { useApp } from '../context/AppContext';
+import { OrnamentalDivider, BreathingGlow, GlassCard } from '../components/MedievalUI';
 
 const { width, height } = Dimensions.get('window');
 const serifFont = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 
-function FloatingDust({ delay, x, y, size, color }) {
+const FEATURES = [
+  { icon: 'scroll', name: 'Quests', desc: 'Conquer your tasks', color: '#C9A84C' },
+  { icon: 'flame', name: 'Habits', desc: 'Build daily rituals', color: '#E74C3C' },
+  { icon: 'timer', name: 'Focus Timer', desc: 'Deep work sessions', color: '#3498DB' },
+  { icon: 'shield-checkmark', name: 'Discipline', desc: 'Stay consistent', color: '#27AE60' },
+  { icon: 'trophy', name: 'Challenges', desc: 'Push your limits', color: '#F39C12' },
+  { icon: 'grid', name: 'Kanban', desc: 'Visual workflow', color: '#9B59B6' },
+];
+
+const STATS = [
+  { number: '10+', label: 'Features', icon: 'apps' },
+  { number: '∞', label: 'Theme Engine', icon: 'color-palette' },
+  { number: '🏆', label: 'Gamified', icon: 'ribbon' },
+  { number: '📊', label: 'Analytics', icon: 'analytics' },
+];
+
+function Particle({ index }) {
   const sv = useSharedValue(0);
+  const x = useSharedValue(Math.random() * width);
+  const startY = height * 0.3 + Math.random() * height * 0.5;
+  const duration = 6000 + Math.random() * 6000;
+  const size = 2 + Math.random() * 4;
 
   useEffect(() => {
-    sv.value = withDelay(delay, withRepeat(
-      withSequence(
-        withTiming(1, { duration: 4000 + Math.random() * 3000, easing: Easing.inOut(Easing.sin) }),
-        withTiming(0, { duration: 4000 + Math.random() * 3000, easing: Easing.inOut(Easing.sin) }),
-      ),
-      -1, false,
-    ));
-  }, []);
-
-  const style = useAnimatedStyle(() => ({
-    opacity: interpolate(sv.value, [0, 1], [0, 0.25]),
-    transform: [
-      { translateY: interpolate(sv.value, [0, 1], [0, -60]) },
-      { scale: interpolate(sv.value, [0, 0.5, 1], [0.5, 1, 0.5]) },
-    ],
-  }));
-
-  return (
-    <Animated.View style={[styles.dust, { left: x, top: y, width: size, height: size, borderRadius: size / 2, backgroundColor: color }, style]} />
-  );
-}
-
-function ShieldHero() {
-  const { theme } = useTheme();
-  const rotation = useSharedValue(0);
-
-  useEffect(() => {
-    rotation.value = withRepeat(
-      withSequence(
-        withTiming(-5, { duration: 3000, easing: Easing.inOut(Easing.sin) }),
-        withTiming(5, { duration: 3000, easing: Easing.inOut(Easing.sin) }),
-      ),
-      -1, false,
+    sv.value = withRepeat(
+      withTiming(1, { duration, easing: Easing.linear }),
+      -1,
+      false,
     );
   }, []);
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${rotation.value}deg` }],
-  }));
+  const style = useAnimatedStyle(() => {
+    const progress = sv.value;
+    return {
+      opacity: interpolate(progress, [0, 0.1, 0.8, 1], [0, 0.6, 0.6, 0]),
+      transform: [
+        { translateY: interpolate(progress, [0, 1], [0, -height * 0.8]) },
+        { translateX: Math.sin(progress * Math.PI * 3) * 30 },
+      ],
+    };
+  });
 
   return (
-    <Animated.View entering={ZoomIn.duration(800).springify().damping(12).stiffness(80)} style={styles.shieldWrap}>
-      <BreathingGlow color={theme.colors.primary} size={160} />
-      <Animated.View style={[styles.shieldOuter, { borderColor: theme.colors.primary + '30' }, animatedStyle]}>
-        <Ionicons name="shield" size={52} color={theme.colors.primary} />
-      </Animated.View>
-    </Animated.View>
+    <Animated.View
+      style={[
+        {
+          position: 'absolute',
+          left: x.value,
+          top: startY,
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: 'rgba(201, 168, 76, 0.8)',
+          shadowColor: '#C9A84C',
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.8,
+          shadowRadius: 6,
+          elevation: 4,
+        },
+        style,
+      ]}
+    />
   );
 }
 
-function HeroTitle() {
-  const { theme } = useTheme();
-  const navigation = useNavigation();
+function HeroSection({ theme, isDark, navigation }) {
   const btnScale = useSharedValue(1);
+  const glowPulse = useSharedValue(0);
+
+  useEffect(() => {
+    glowPulse.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0, { duration: 2000, easing: Easing.inOut(Easing.sin) }),
+      ),
+      -1,
+      false,
+    );
+  }, []);
 
   const btnStyle = useAnimatedStyle(() => ({
     transform: [{ scale: btnScale.value }],
   }));
 
-  const handlePressIn = () => { btnScale.value = withSpring(0.95, { damping: 15, stiffness: 400 }); };
-  const handlePressOut = () => { btnScale.value = withSpring(1, { damping: 15, stiffness: 400 }); };
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(glowPulse.value, [0, 1], [0.15, 0.4]),
+    transform: [{ scale: interpolate(glowPulse.value, [0, 1], [0.9, 1.1]) }],
+  }));
+
+  const handlePressIn = () => {
+    btnScale.value = withSpring(0.94, { damping: 15, stiffness: 400 });
+  };
+  const handlePressOut = () => {
+    btnScale.value = withSpring(1, { damping: 15, stiffness: 400 });
+  };
 
   return (
-    <View style={styles.titleContainer}>
-      <ShieldHero />
+    <View style={[styles.heroSection, { height: height * 0.92 }]}>
+      {Array.from({ length: 14 }).map((_, i) => (
+        <Particle key={i} index={i} />
+      ))}
 
-      <Animated.View entering={FadeInDown.duration(700).delay(300).springify().damping(16)} style={styles.titleRow}>
-        <Text style={[styles.title, { color: theme.colors.text }]}>Royal</Text>
-        <Text style={[styles.titleAccent, { color: theme.colors.primary }]}>Task</Text>
-      </Animated.View>
+      <LinearGradient
+        colors={
+          isDark
+            ? ['#0E0C11', '#161320', '#1A1724', '#0E0C11']
+            : ['#F5EDE0', '#EDE5D8', '#E8DFD0', '#F5EDE0']
+        }
+        style={StyleSheet.absoluteFill}
+      />
 
-      <Animated.View entering={FadeIn.duration(600).delay(600)}>
-        <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>Command Your Dominion</Text>
-      </Animated.View>
-
-      <Animated.View entering={FadeIn.duration(500).delay(800)}>
-        <Text style={[styles.tagline, { color: theme.colors.textMuted }]}>Tasks · Habits · Focus</Text>
-      </Animated.View>
-
-      <OrnamentalDivider />
-
-      <Animated.View entering={FadeInUp.duration(600).delay(1000).springify().damping(14)}>
-        <Animated.View style={btnStyle}>
-          <TouchableOpacity
-            style={[styles.button, { borderColor: theme.colors.primary + '40' }]}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); navigation.replace('Main'); }}
-            onPressIn={handlePressIn}
-            onPressOut={handlePressOut}
-            activeOpacity={0.9}
+      <View style={styles.heroContent}>
+        <Animated.View entering={ZoomIn.duration(900).springify().damping(12).stiffness(70)} style={styles.shieldWrap}>
+          <BreathingGlow color={theme.colors.primary} size={180} />
+          <Animated.View
+            style={[
+              styles.shieldOuter,
+              {
+                borderColor: theme.colors.primary + '30',
+                backgroundColor: isDark ? 'rgba(201,168,76,0.06)' : 'rgba(201,168,76,0.08)',
+              },
+              glowStyle,
+            ]}
           >
-            <BreathingGlow color={theme.colors.primary} size={280} style={{ top: -100 }} />
-            <Text style={[styles.buttonText, { color: theme.colors.primary }]}>Begin Your Quest</Text>
-            <Ionicons name="arrow-forward" size={16} color={theme.colors.primary} style={{ marginLeft: 8 }} />
-          </TouchableOpacity>
+            <Ionicons name="shield" size={56} color={theme.colors.primary} />
+          </Animated.View>
         </Animated.View>
+
+        <Animated.View entering={FadeInDown.duration(700).delay(300).springify().damping(16)}>
+          <Text style={[styles.heroTitle, { color: theme.colors.text }]}>LifeFlow</Text>
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.duration(600).delay(500)}>
+          <Text style={[styles.heroSubtitle, { color: theme.colors.primary }]}>Master Your Domain</Text>
+        </Animated.View>
+
+        <Animated.View entering={FadeIn.duration(500).delay(700)}>
+          <Text style={[styles.heroTagline, { color: theme.colors.textMuted }]}>
+            Tasks · Habits · Focus · Discipline · Growth
+          </Text>
+        </Animated.View>
+
+        <Animated.View entering={FadeIn.duration(400).delay(850)} style={styles.dividerWrap}>
+          <OrnamentalDivider />
+        </Animated.View>
+
+        <Animated.View entering={FadeInUp.duration(600).delay(1000).springify().damping(14)}>
+          <Animated.View style={btnStyle}>
+            <TouchableOpacity
+              style={[styles.enterButton, { borderColor: theme.colors.primary + '40' }]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                navigation.replace('Main');
+              }}
+              onPressIn={handlePressIn}
+              onPressOut={handlePressOut}
+              activeOpacity={0.9}
+            >
+              <BreathingGlow color={theme.colors.primary} size={300} style={{ top: -110, opacity: 0.15 }} />
+              <Text style={[styles.enterButtonText, { color: theme.colors.primary }]}>Enter</Text>
+              <Ionicons name="arrow-forward" size={16} color={theme.colors.primary} style={{ marginLeft: 8 }} />
+            </TouchableOpacity>
+          </Animated.View>
+        </Animated.View>
+      </View>
+    </View>
+  );
+}
+
+function FeatureCard({ feature, index, theme }) {
+  return (
+    <Animated.View
+      entering={FadeInDown.duration(500).delay(100 + index * 80).springify().damping(18).stiffness(120)}
+    >
+      <TouchableOpacity
+        style={[
+          styles.featureCard,
+          {
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.colors.border,
+          },
+          theme.shadows.small,
+        ]}
+        activeOpacity={0.85}
+        onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+      >
+        <View
+          style={[
+            styles.featureIconWrap,
+            { backgroundColor: feature.color + '18' },
+          ]}
+        >
+          <Ionicons name={feature.icon} size={24} color={feature.color} />
+        </View>
+        <Text style={[styles.featureName, { color: theme.colors.text }]}>{feature.name}</Text>
+        <Text style={[styles.featureDesc, { color: theme.colors.textSecondary }]}>{feature.desc}</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+function FeaturesSection({ theme, isDark }) {
+  return (
+    <View style={styles.section}>
+      <Animated.View entering={FadeInDown.duration(600).delay(100)}>
+        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Everything You Need</Text>
+      </Animated.View>
+
+      <View style={styles.featureGrid}>
+        {FEATURES.map((feature, index) => (
+          <FeatureCard key={feature.name} feature={feature} index={index} theme={theme} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function StatBox({ stat, index, theme }) {
+  return (
+    <Animated.View
+      entering={FadeInUp.duration(500).delay(150 + index * 100).springify().damping(16)}
+      style={[
+        styles.statBox,
+        {
+          backgroundColor: theme.colors.surface,
+          borderColor: theme.colors.border,
+        },
+        theme.shadows.small,
+      ]}
+    >
+      <Ionicons name={stat.icon} size={20} color={theme.colors.primary} />
+      <Text style={[styles.statNumber, { color: theme.colors.primary }]}>{stat.number}</Text>
+      <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>{stat.label}</Text>
+    </Animated.View>
+  );
+}
+
+function StatsSection({ theme, isDark }) {
+  return (
+    <View style={styles.section}>
+      <Animated.View entering={FadeInDown.duration(600).delay(100)}>
+        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Built For Champions</Text>
+      </Animated.View>
+
+      <View style={styles.statGrid}>
+        {STATS.map((stat, index) => (
+          <StatBox key={stat.label} stat={stat} index={index} theme={theme} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function CreatorSection({ theme, isDark }) {
+  return (
+    <View style={[styles.section, styles.creatorSection]}>
+      <Animated.View entering={FadeIn.duration(600).delay(100)}>
+        <OrnamentalDivider />
+      </Animated.View>
+
+      <Animated.View entering={FadeInDown.duration(600).delay(250)}>
+        <Text style={[styles.craftedLabel, { color: theme.colors.textMuted }]}>Crafted with passion by</Text>
+      </Animated.View>
+
+      <Animated.View entering={FadeInDown.duration(700).delay(400).springify().damping(14)}>
+        <View style={styles.creatorNameWrap}>
+          <BreathingGlow color={theme.colors.primary} size={220} style={{ top: -40 }} />
+          <Text style={[styles.creatorName, { color: theme.colors.primary }]}>Harshit Mishra</Text>
+        </View>
+      </Animated.View>
+
+      <Animated.View entering={FadeIn.duration(500).delay(600)}>
+        <Text style={[styles.yearText, { color: theme.colors.textMuted }]}>2025</Text>
       </Animated.View>
     </View>
   );
 }
 
-const dustParticles = Array.from({ length: 12 }, (_, i) => ({
-  key: i,
-  x: Math.random() * width,
-  y: Math.random() * height,
-  size: Math.random() * 3 + 1.5,
-  delay: Math.random() * 3000,
-  color: ['#C9A84C', '#E2CC7E', '#8B6914'][i % 3],
-}));
-
 export default function HomeScreen() {
   const { theme, isDark } = useTheme();
+  const navigation = useNavigation();
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <LinearGradient
-        colors={isDark ? ['#0E0C11', '#12101A', '#161320'] : ['#F5EDE0', '#EDE5D8', '#E5DDD0']}
-        style={StyleSheet.absoluteFill}
+      <StatusBar
+        barStyle={isDark ? 'light-content' : 'dark-content'}
+        backgroundColor="transparent"
+        translucent
       />
 
-      {dustParticles.map(p => (
-        <FloatingDust key={p.key} {...p} />
-      ))}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+        <HeroSection theme={theme} isDark={isDark} navigation={navigation} />
 
-      <View style={styles.content}>
-        <HeroTitle />
-      </View>
+        <FeaturesSection theme={theme} isDark={isDark} />
 
-      <Animated.View entering={FadeIn.duration(500).delay(1400)}>
-        <Text style={[styles.version, { color: theme.colors.textMuted }]}>v2.0</Text>
-      </Animated.View>
+        <StatsSection theme={theme} isDark={isDark} />
+
+        <CreatorSection theme={theme} isDark={isDark} />
+
+        <Animated.View entering={FadeIn.duration(400).delay(300)} style={styles.versionWrap}>
+          <Text style={[styles.versionText, { color: theme.colors.textMuted }]}>LifeFlow v2.0</Text>
+        </Animated.View>
+
+        <View style={styles.bottomPadding} />
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  content: { alignItems: 'center', paddingHorizontal: 40 },
-  dust: { position: 'absolute' },
+  container: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 20,
+  },
 
-  shieldWrap: { width: 120, height: 120, justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
+  heroSection: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  heroContent: {
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    zIndex: 10,
+  },
+  shieldWrap: {
+    width: 140,
+    height: 140,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 28,
+  },
   shieldOuter: {
-    width: 90, height: 90, borderRadius: 45, borderWidth: 1,
-    justifyContent: 'center', alignItems: 'center',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroTitle: {
+    fontSize: 44,
+    fontFamily: serifFont,
+    fontWeight: '400',
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  heroSubtitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 3,
+    textTransform: 'uppercase',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  heroTagline: {
+    fontSize: 13,
+    letterSpacing: 1,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  dividerWrap: {
+    marginVertical: 20,
+    width: width * 0.7,
+  },
+  enterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 44,
+    paddingVertical: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+    marginTop: 4,
+    backgroundColor: 'rgba(201,168,76,0.06)',
+  },
+  enterButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
   },
 
-  titleRow: { flexDirection: 'row', alignItems: 'baseline', marginBottom: 12 },
-  title: { fontSize: 44, fontWeight: '400', fontFamily: serifFont, letterSpacing: 0.5, marginRight: 8 },
-  titleAccent: { fontSize: 44, fontWeight: '400', fontFamily: serifFont, letterSpacing: 0.5 },
-
-  subtitle: { fontSize: 14, fontWeight: '500', letterSpacing: 3, textTransform: 'uppercase', marginBottom: 8, textAlign: 'center' },
-  tagline: { fontSize: 13, letterSpacing: 1, marginBottom: 4, textAlign: 'center' },
-
-  button: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    paddingHorizontal: 36, paddingVertical: 16, borderRadius: 10,
-    borderWidth: 1, overflow: 'hidden', marginTop: 8,
+  section: {
+    paddingHorizontal: 20,
+    paddingTop: 48,
+    paddingBottom: 8,
   },
-  buttonText: { fontSize: 14, fontWeight: '600', letterSpacing: 1.5, textTransform: 'uppercase' },
+  sectionTitle: {
+    fontSize: 24,
+    fontFamily: serifFont,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 24,
+    letterSpacing: 0.3,
+  },
 
-  version: { position: 'absolute', bottom: 50, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' },
+  featureGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  featureCard: {
+    width: (width - 52) / 2,
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1,
+  },
+  featureIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  featureName: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  featureDesc: {
+    fontSize: 12,
+    fontWeight: '400',
+    lineHeight: 17,
+  },
+
+  statGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  statBox: {
+    width: (width - 52) / 2,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  statNumber: {
+    fontSize: 28,
+    fontFamily: serifFont,
+    fontWeight: '700',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    letterSpacing: 0.5,
+  },
+
+  creatorSection: {
+    alignItems: 'center',
+    paddingTop: 40,
+    paddingBottom: 20,
+  },
+  craftedLabel: {
+    fontSize: 13,
+    fontWeight: '400',
+    letterSpacing: 1,
+    textAlign: 'center',
+    marginTop: 20,
+    marginBottom: 8,
+  },
+  creatorNameWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 12,
+  },
+  creatorName: {
+    fontSize: 30,
+    fontFamily: serifFont,
+    fontWeight: '400',
+    letterSpacing: 0.5,
+  },
+  yearText: {
+    fontSize: 12,
+    fontWeight: '400',
+    letterSpacing: 2,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+
+  versionWrap: {
+    alignItems: 'center',
+    paddingTop: 32,
+    paddingBottom: 8,
+  },
+  versionText: {
+    fontSize: 11,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    fontWeight: '500',
+  },
+  bottomPadding: {
+    height: 40,
+  },
 });

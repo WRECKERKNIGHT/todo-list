@@ -13,6 +13,11 @@ const COINS_PER_HABIT = 3;
 const COINS_PER_CHALLENGE = 20;
 const PUNISHMENT_FINE = 10;
 
+const OVERDUE_FINES = { 1: 5, 2: 10, 3: 20, 7: 50 }; // days overdue: fine amount
+const CONSISTENCY_BONUS_THRESHOLD = 80; // % needed for bonus
+const CONSISTENCY_BONUS_XP = 50;
+const CONSISTENCY_BONUS_COINS = 25;
+
 const LEVELS = [
   { level: 1, xp: 0, title: 'Peasant' },
   { level: 2, xp: 100, title: 'Squire' },
@@ -108,6 +113,12 @@ const initialState = {
   tagsApplied: 0,
   viewMode: 'list',
   moodEntries: [],
+  consistencyHistory: [],
+  weeklyReportCards: [],
+  totalFinesPaid: 0,
+  longestStreak: 0,
+  disciplineRank: 'Unranked',
+  lastDisciplineCheck: null,
 };
 
 function getLevel(xp) {
@@ -188,6 +199,11 @@ function appReducer(state, action) {
         tagsApplied: action.payload.tagsApplied || 0,
         viewMode: action.payload.viewMode || 'list',
         moodEntries: action.payload.moodEntries || [],
+        consistencyHistory: action.payload.consistencyHistory || [],
+        weeklyReportCards: action.payload.weeklyReportCards || [],
+        totalFinesPaid: action.payload.totalFinesPaid || 0,
+        longestStreak: action.payload.longestStreak || 0,
+        disciplineRank: action.payload.disciplineRank || 'Unranked',
         isLoading: false,
       };
 
@@ -341,6 +357,39 @@ function appReducer(state, action) {
       return { ...state, moodEntries: entries };
     }
 
+    case 'LOG_DAILY_CONSISTENCY': {
+  const { date, score, tasksCompleted, tasksTotal, habitsCompleted, habitsTotal, overdueCount } = action.payload;
+  const history = [...state.consistencyHistory];
+  const existing = history.findIndex(h => h.date === date);
+  const entry = { date, score, tasksCompleted, tasksTotal, habitsCompleted, habitsTotal, overdueCount };
+  if (existing >= 0) history[existing] = entry; else history.push(entry);
+  const recentScores = history.slice(-30).map(h => h.score);
+  const avgScore = recentScores.length > 0 ? recentScores.reduce((a, b) => a + b, 0) / recentScores.length : 0;
+  let rank = 'Unranked';
+  if (avgScore >= 95) rank = 'Legendary';
+  else if (avgScore >= 85) rank = 'Elite';
+  else if (avgScore >= 70) rank = 'Disciplined';
+  else if (avgScore >= 50) rank = 'Wavering';
+  else if (avgScore >= 30) rank = 'Struggling';
+  else if (history.length > 0) rank = 'Undisciplined';
+  return { ...state, consistencyHistory: history, disciplineRank: rank, lastDisciplineCheck: new Date().toISOString() };
+}
+case 'APPLY_OVERDUE_FINE': {
+  if (state.hasProtection) return { ...state, hasProtection: false };
+  const fine = action.payload.amount;
+  return { ...state, coins: Math.max(0, state.coins - fine), totalFinesPaid: state.totalFinesPaid + fine, punishmentCount: state.punishmentCount + 1, punishmentReasons: [...state.punishmentReasons, { reason: action.payload.reason, date: new Date().toISOString(), coinsLost: fine }] };
+}
+case 'UPDATE_LONGEST_STREAK': {
+  const newLongest = Math.max(state.longestStreak, action.payload);
+  return { ...state, longestStreak: newLongest, streakDays: action.payload };
+}
+case 'ADD_WEEKLY_REPORT': {
+  const reports = [...state.weeklyReportCards];
+  const exists = reports.findIndex(r => r.weekStart === action.payload.weekStart);
+  if (exists >= 0) reports[exists] = action.payload; else reports.push(action.payload);
+  return { ...state, weeklyReportCards: reports.slice(-12) };
+}
+
     default:
       return state;
   }
@@ -366,11 +415,13 @@ export function AppProvider({ children }) {
         activeTitle: state.activeTitle, activeShield: state.activeShield,
         xpBoostEnd: state.xpBoostEnd, hasProtection: state.hasProtection,
         kanbanMoved: state.kanbanMoved, tagsApplied: state.tagsApplied,
-        viewMode: state.viewMode,
+        viewMode: state.viewMode, moodEntries: state.moodEntries,
+        consistencyHistory: state.consistencyHistory, weeklyReportCards: state.weeklyReportCards,
+        totalFinesPaid: state.totalFinesPaid, longestStreak: state.longestStreak, disciplineRank: state.disciplineRank,
       };
       saveData(KEYS.APP_DATA, data);
     }
-  }, [state.todos, state.habits, state.countdowns, state.notes, state.isLoading, state.xp, state.coins, state.tags, state.dailyChallenge, state.timeEntries, state.unlockedShopItems, state.activeThemeAccent, state.activeTitle, state.activeShield, state.viewMode]);
+  }, [state.todos, state.habits, state.countdowns, state.notes, state.isLoading, state.xp, state.coins, state.tags, state.dailyChallenge, state.timeEntries, state.unlockedShopItems, state.activeThemeAccent, state.activeTitle, state.activeShield, state.viewMode, state.moodEntries, state.consistencyHistory, state.weeklyReportCards]);
 
   useEffect(() => {
     state.todos.forEach(todo => {
@@ -624,6 +675,57 @@ export function AppProvider({ children }) {
     dispatch({ type: 'ADD_MOOD_ENTRY', payload: entry });
   }, []);
 
+  const logDailyConsistency = useCallback((data) => dispatch({ type: 'LOG_DAILY_CONSISTENCY', payload: data }), []);
+  const applyOverdueFine = useCallback((reason, amount) => dispatch({ type: 'APPLY_OVERDUE_FINE', payload: { reason, amount } }), []);
+  const addWeeklyReport = useCallback((report) => dispatch({ type: 'ADD_WEEKLY_REPORT', payload: report }), []);
+
+  const calculateConsistency = useCallback(() => {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    
+    const todayTasks = state.todos.filter(t => t.dueDate && new Date(t.dueDate).toISOString().split('T')[0] === todayStr);
+    const completedToday = todayTasks.filter(t => t.completed).length;
+    const totalToday = todayTasks.length || 1;
+    
+    const todayHabits = state.habits.length;
+    const habitsDone = state.habits.filter(h => h.completedDates.includes(todayStr)).length;
+    
+    const overdue = state.todos.filter(t => !t.completed && t.dueDate && new Date(t.dueDate) < today).length;
+    
+    const taskScore = totalToday > 0 ? (completedToday / totalToday) * 100 : (completedToday > 0 ? 100 : 0);
+    const habitScore = todayHabits > 0 ? (habitsDone / todayHabits) * 100 : (habitsDone > 0 ? 100 : 0);
+    const penaltyScore = Math.max(0, 100 - (overdue * 10));
+    
+    const score = Math.round((taskScore * 0.4 + habitScore * 0.4 + penaltyScore * 0.2));
+    
+    return { score: Math.min(100, Math.max(0, score)), tasksCompleted: completedToday, tasksTotal: todayTasks.length, habitsCompleted: habitsDone, habitsTotal: todayHabits, overdueCount: overdue };
+  }, [state.todos, state.habits]);
+
+  const generateWeeklyReport = useCallback(() => {
+    const today = new Date();
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - today.getDay());
+    const weekStartStr = weekStart.toISOString().split('T')[0];
+    
+    const weekHistory = state.consistencyHistory.filter(h => h.date >= weekStartStr);
+    const avgScore = weekHistory.length > 0 ? Math.round(weekHistory.reduce((s, h) => s + h.score, 0) / weekHistory.length) : 0;
+    
+    let grade = 'F';
+    if (avgScore >= 90) grade = 'A+';
+    else if (avgScore >= 80) grade = 'A';
+    else if (avgScore >= 70) grade = 'B';
+    else if (avgScore >= 60) grade = 'C';
+    else if (avgScore >= 50) grade = 'D';
+    
+    const totalTasks = weekHistory.reduce((s, h) => s + h.tasksTotal, 0);
+    const totalCompleted = weekHistory.reduce((s, h) => s + h.tasksCompleted, 0);
+    const totalHabits = weekHistory.reduce((s, h) => s + h.habitsTotal, 0);
+    const habitsDone = weekHistory.reduce((s, h) => s + h.habitsCompleted, 0);
+    const totalOverdue = weekHistory.reduce((s, h) => s + h.overdueCount, 0);
+    
+    return { weekStart: weekStartStr, avgScore, grade, totalTasks, totalCompleted, totalHabits, habitsDone, totalOverdue, daysLogged: weekHistory.length };
+  }, [state.consistencyHistory, state.todos, state.habits]);
+
   const searchAll = useCallback((query) => {
     const q = query.toLowerCase();
     return {
@@ -654,6 +756,7 @@ export function AppProvider({ children }) {
     getTodoStats, getHabitStats, getUpcomingCountdowns, getTodosForDate,
     getHeatmapData, getTotalTimeTracked,
     addMoodEntry,
+    logDailyConsistency, applyOverdueFine, calculateConsistency, generateWeeklyReport, addWeeklyReport,
     searchAll, exportData, getLevel,
   };
 

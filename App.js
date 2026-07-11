@@ -31,6 +31,7 @@ import ChallengesScreen from './src/screens/ChallengesScreen';
 import HeatmapScreen from './src/screens/HeatmapScreen';
 import TimeTrackingScreen from './src/screens/TimeTrackingScreen';
 import GuildScreen from './src/screens/GuildScreen';
+import DisciplineScreen from './src/screens/DisciplineScreen';
 import GlobalSearch from './src/components/GlobalSearch';
 
 const Stack = createNativeStackNavigator();
@@ -192,6 +193,7 @@ function AppContent() {
         <Stack.Screen name="Heatmap" component={HeatmapScreen} />
         <Stack.Screen name="TimeTracking" component={TimeTrackingScreen} />
         <Stack.Screen name="Guild" component={GuildScreen} />
+        <Stack.Screen name="Discipline" component={DisciplineScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
