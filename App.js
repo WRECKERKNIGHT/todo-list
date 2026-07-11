@@ -66,10 +66,12 @@ function AnimatedTabIcon({ routeName, focused, color }) {
 function CustomTabBar({ state, descriptors, navigation, theme }) {
   const indicatorX = useSharedValue(0);
   const { width } = require('react-native').Dimensions.get('window');
+  const visibleRoutes = state.routes.filter(r => r.name !== 'More');
   const TAB_WIDTH = (width - 48) / 4;
 
   useEffect(() => {
-    indicatorX.value = withSpring(state.index * TAB_WIDTH, {
+    const visibleIndex = visibleRoutes.findIndex(r => r.key === state.routes[state.index]?.key);
+    indicatorX.value = withSpring(24 + visibleIndex * TAB_WIDTH + (TAB_WIDTH - 40) / 2, {
       damping: 20, stiffness: 250, mass: 0.8,
     });
   }, [state.index]);
@@ -79,7 +81,7 @@ function CustomTabBar({ state, descriptors, navigation, theme }) {
   }));
 
   return (
-    <View style={[styles.tabBar, { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.border }]}>
+    <View style={[styles.tabBar, { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.border }, theme.shadows.small]}>
       <Animated.View style={[styles.tabIndicator, { backgroundColor: theme.colors.primary }, indicatorStyle]} />
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];

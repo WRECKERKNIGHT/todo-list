@@ -125,10 +125,10 @@ export default function VoiceCommandModal({ visible, onClose, onExecute }) {
   if (!visible) return null;
 
   return (
-    <Animated.View entering={FadeIn.duration(200)} style={styles.overlay}>
+    <Animated.View entering={FadeIn.duration(200)} style={[styles.overlay, { backgroundColor: theme.colors.overlay }]}>
       <TouchableOpacity activeOpacity={1} style={{ flex: 1 }} onPress={onClose} />
       <Animated.View entering={ZoomIn.springify().damping(14).stiffness(120)} style={[styles.modal, { backgroundColor: theme.colors.surface }]}>
-        <View style={styles.handle} />
+        <View style={[styles.handle, { backgroundColor: theme.colors.textMuted }]} />
 
         <View style={styles.micSection}>
           <TouchableOpacity
@@ -192,7 +192,6 @@ export default function VoiceCommandModal({ visible, onClose, onExecute }) {
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
     zIndex: 200,
   },

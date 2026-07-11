@@ -55,7 +55,7 @@ function KanbanCard({ todo, onMoveRight, onMoveLeft, onToggle, tags }) {
       >
         <View style={styles.cardTop}>
           <Text style={[styles.cardTitle, { color: theme.colors.text }]} numberOfLines={2}>{todo.title}</Text>
-          {todo.priority === 'high' && <Ionicons name="flash" size={12} color="#C25B4E" />}
+          {todo.priority === 'high' && <Ionicons name="flash" size={12} color={theme.colors.error} />}
         </View>
 
         {todoTags.length > 0 && (

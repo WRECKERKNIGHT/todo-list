@@ -61,7 +61,7 @@ function ActiveTimer({ activeTimeEntry, onStop, onClear, theme }) {
       <Text style={[styles.activeTimerTime, { color: theme.colors.primary }]}>{formatDuration(elapsed)}</Text>
       <View style={styles.activeTimerActions}>
         <TouchableOpacity
-          style={[styles.timerBtn, { backgroundColor: theme.colors.error || '#E85D5D' }]}
+          style={[styles.timerBtn, { backgroundColor: theme.colors.error }]}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             onStop();

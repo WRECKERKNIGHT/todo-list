@@ -67,7 +67,7 @@ function AnimatedStatCard({ title, value, color, icon, delay, onPress }) {
 
   return (
     <Animated.View entering={FadeInDown.duration(500).delay(delay).springify().damping(16).stiffness(100)} style={[{ width: CARD_W, marginHorizontal: 6, marginBottom: 12 }, cardStyle]}>
-      <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress?.(); }} onPressIn={() => { scale.value = withSpring(0.96, { damping: 15, stiffness: 400 }); }} onPressOut={() => { scale.value = withSpring(1, { damping: 15, stiffness: 400 }); }} activeOpacity={1} style={[styles.statCard, { backgroundColor: theme.colors.surface, borderLeftColor: color }]}>
+      <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress?.(); }} onPressIn={() => { scale.value = withSpring(0.96, { damping: 15, stiffness: 400 }); }} onPressOut={() => { scale.value = withSpring(1, { damping: 15, stiffness: 400 }); }} activeOpacity={1} style={[styles.statCard, { backgroundColor: theme.colors.surface, borderLeftColor: color }, theme.shadows.small]}>
         <View style={[styles.statIconWrap, { backgroundColor: color + '12' }]}>
           <Ionicons name={icon} size={18} color={color} />
         </View>
@@ -88,7 +88,7 @@ function QuickLink({ title, subtitle, icon, color, count, onPress, delay }) {
   return (
     <Animated.View entering={FadeInDown.duration(400).delay(delay).springify().damping(18)}>
       <Animated.View style={s}>
-        <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress?.(); }} onPressIn={() => { scale.value = withSpring(0.97, { damping: 15, stiffness: 400 }); }} onPressOut={() => { scale.value = withSpring(1, { damping: 15, stiffness: 400 }); }} activeOpacity={1} style={[styles.linkCard, { backgroundColor: theme.colors.surface }]}>
+        <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress?.(); }} onPressIn={() => { scale.value = withSpring(0.97, { damping: 15, stiffness: 400 }); }} onPressOut={() => { scale.value = withSpring(1, { damping: 15, stiffness: 400 }); }} activeOpacity={1} style={[styles.linkCard, { backgroundColor: theme.colors.surface }, theme.shadows.small]}>
           <View style={[styles.linkIconWrap, { backgroundColor: color + '10' }]}>
             <Ionicons name={icon} size={20} color={color} />
           </View>
@@ -178,7 +178,7 @@ function MoodWidget({ delay }) {
 
   return (
     <Animated.View entering={FadeInDown.duration(500).delay(delay).springify().damping(18)}>
-      <View style={[styles.widgetCard, { backgroundColor: theme.colors.surface, borderRadius: 16 }]}>
+      <View style={[styles.widgetCard, { backgroundColor: theme.colors.surface, borderRadius: 16 }, theme.shadows.small]}>
         <View style={styles.widgetHeader}>
           <Ionicons name="heart-outline" size={18} color={theme.colors.accent} />
           <Text style={[styles.widgetTitle, { color: theme.colors.text }]}>How are you?</Text>
@@ -336,19 +336,20 @@ function StatsWidget({ todos, habits, delay }) {
 }
 
 function QuickLinksWidget({ todayTodos, state, navigation, delay }) {
+  const { theme } = useTheme();
   return (
     <View style={styles.linksContainer}>
-      <QuickLink title="Quests" subtitle={`${todayTodos.length} today`} icon="scroll-outline" color="#C9A84C" count={todayTodos.length} delay={delay} onPress={() => navigation.navigate('Main', { screen: 'Quests' })} />
-      <QuickLink title="Kanban Board" subtitle="Drag & organize" icon="columns-outline" color="#5B8AC2" delay={delay + 20} onPress={() => navigation.navigate('Kanban')} />
-      <QuickLink title="Daily Challenge" subtitle="Earn rewards" icon="flash-outline" color="#C25B4E" delay={delay + 40} onPress={() => navigation.navigate('Challenges')} />
-      <QuickLink title="Focus Timer" subtitle="Pomodoro" icon="timer-outline" color="#7A6B8A" delay={delay + 60} onPress={() => navigation.navigate('Pomodoro')} />
-      <QuickLink title="Time Tracking" subtitle="Track time" icon="stopwatch-outline" color="#5B9A6F" delay={delay + 80} onPress={() => navigation.navigate('TimeTracking')} />
-      <QuickLink title="Heatmap" subtitle="365-day view" icon="grid-outline" color="#C9A84C" delay={delay + 100} onPress={() => navigation.navigate('Heatmap')} />
-      <QuickLink title="Journal" subtitle="Reflections" icon="book-outline" color="#C9A84C" count={state.notes.length} delay={delay + 120} onPress={() => navigation.navigate('Notes')} />
-      <QuickLink title="Trophies" subtitle="Achievements" icon="trophy-outline" color="#C9A84C" count={state.achievements.filter(a => a.unlocked).length} delay={delay + 140} onPress={() => navigation.navigate('Achievements')} />
-      <QuickLink title="Guild Hall" subtitle="Join forces" icon="people-outline" color="#9B59B6" delay={delay + 150} onPress={() => navigation.navigate('Guild')} />
-      <QuickLink title="Shop" subtitle="Spend coins" icon="storefront-outline" color="#C9A84C" delay={delay + 160} onPress={() => navigation.navigate('Shop')} />
-      <QuickLink title="Settings" subtitle="Configure" icon="settings-outline" color="#4E4860" delay={delay + 180} onPress={() => navigation.navigate('Settings')} />
+      <QuickLink title="Quests" subtitle={`${todayTodos.length} today`} icon="scroll-outline" color={theme.colors.gold} count={todayTodos.length} delay={delay} onPress={() => navigation.navigate('Main', { screen: 'Quests' })} />
+      <QuickLink title="Kanban Board" subtitle="Drag & organize" icon="columns-outline" color={theme.colors.secondary} delay={delay + 20} onPress={() => navigation.navigate('Kanban')} />
+      <QuickLink title="Daily Challenge" subtitle="Earn rewards" icon="flash-outline" color={theme.colors.error} delay={delay + 40} onPress={() => navigation.navigate('Challenges')} />
+      <QuickLink title="Focus Timer" subtitle="Pomodoro" icon="timer-outline" color={theme.colors.secondary} delay={delay + 60} onPress={() => navigation.navigate('Pomodoro')} />
+      <QuickLink title="Time Tracking" subtitle="Track time" icon="stopwatch-outline" color={theme.colors.success} delay={delay + 80} onPress={() => navigation.navigate('TimeTracking')} />
+      <QuickLink title="Heatmap" subtitle="365-day view" icon="grid-outline" color={theme.colors.gold} delay={delay + 100} onPress={() => navigation.navigate('Heatmap')} />
+      <QuickLink title="Journal" subtitle="Reflections" icon="book-outline" color={theme.colors.gold} count={state.notes.length} delay={delay + 120} onPress={() => navigation.navigate('Notes')} />
+      <QuickLink title="Trophies" subtitle="Achievements" icon="trophy-outline" color={theme.colors.gold} count={state.achievements.filter(a => a.unlocked).length} delay={delay + 140} onPress={() => navigation.navigate('Achievements')} />
+      <QuickLink title="Guild Hall" subtitle="Join forces" icon="people-outline" color={theme.colors.secondary} delay={delay + 150} onPress={() => navigation.navigate('Guild')} />
+      <QuickLink title="Shop" subtitle="Spend coins" icon="storefront-outline" color={theme.colors.gold} delay={delay + 160} onPress={() => navigation.navigate('Shop')} />
+      <QuickLink title="Settings" subtitle="Configure" icon="settings-outline" color={theme.colors.textMuted} delay={delay + 180} onPress={() => navigation.navigate('Settings')} />
     </View>
   );
 }
@@ -445,9 +446,9 @@ export default function DashboardScreen() {
 
       <TouchableOpacity
         onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setCustomizing(!customizing); }}
-        style={[styles.customizeFab, { backgroundColor: customizing ? theme.colors.primary : theme.colors.surface }]}
+        style={[styles.customizeFab, { backgroundColor: customizing ? theme.colors.primary : theme.colors.surface }, theme.shadows.medium]}
       >
-        <Ionicons name={customizing ? 'checkmark' : 'reorder-three'} size={20} color={customizing ? '#fff' : theme.colors.primary} />
+        <Ionicons name={customizing ? 'checkmark' : 'reorder-three'} size={20} color={customizing ? theme.colors.surface : theme.colors.primary} />
       </TouchableOpacity>
     </View>
   );
@@ -553,6 +554,5 @@ const styles = StyleSheet.create({
     position: 'absolute', bottom: 30, left: 24,
     width: 44, height: 44, borderRadius: 22,
     justifyContent: 'center', alignItems: 'center',
-    elevation: 4, shadowOpacity: 0.3, shadowRadius: 8, shadowColor: '#000',
   },
 });

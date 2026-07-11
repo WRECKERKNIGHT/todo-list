@@ -16,12 +16,12 @@ import Animated, {
 import { Swipeable } from 'react-native-gesture-handler';
 
 const { width } = Dimensions.get('window');
-const HABIT_COLORS = ['#C9A84C', '#C25B4E', '#5B9A6F', '#7A6B8A', '#5B8AC2', '#C27A5B'];
+const getHabitColors = (theme) => [theme.colors.primary, theme.colors.error, theme.colors.success, theme.colors.textSecondary, theme.colors.accent, theme.colors.warning];
 const HABIT_ICONS = ['flame', 'fitness', 'book', 'musical-notes', 'restaurant', 'bedtime', 'water', 'sunny', 'heart', 'brain', 'footsteps', 'bicycle'];
 const serifFont = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 
 function WeekCircle({ done, isToday, color, delay }) {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const scale = useSharedValue(done ? 1 : 0.9);
   const fillScale = useSharedValue(done ? 1 : 0);
 
@@ -40,7 +40,7 @@ function WeekCircle({ done, isToday, color, delay }) {
     <Animated.View style={[styles.weekDayCircle, circleStyle]}>
       {done && (
         <Animated.View entering={BounceIn.duration(300).springify().damping(8)}>
-          <Ionicons name="checkmark" size={12} color="#FFF" />
+          <Ionicons name="checkmark" size={12} color={isDark ? '#fff' : '#000'} />
         </Animated.View>
       )}
     </Animated.View>
@@ -68,15 +68,15 @@ function WeekRow({ habit, onToggle }) {
 }
 
 function HabitCard({ habit, onToggle, onDelete, onEdit, index }) {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const streak = getHabitStreak(habit.completedDates);
   const scale = useSharedValue(1);
   const cardStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
   const renderRightActions = () => (
     <Animated.View entering={FadeIn.duration(200)} style={[styles.swipeAction, { backgroundColor: theme.colors.error }]}>
-      <Ionicons name="trash" size={20} color="#FFF" />
-      <Text style={styles.swipeText}>Delete</Text>
+      <Ionicons name="trash" size={20} color={isDark ? '#fff' : '#000'} />
+      <Text style={[styles.swipeText, { color: isDark ? '#fff' : '#000' }]}>Delete</Text>
     </Animated.View>
   );
 
@@ -125,17 +125,18 @@ function HabitCard({ habit, onToggle, onDelete, onEdit, index }) {
 }
 
 function AddHabitModal({ visible, onClose, onSave, initialData }) {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
+  const habitColors = getHabitColors(theme);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [color, setColor] = useState(HABIT_COLORS[0]);
+  const [color, setColor] = useState(habitColors[0]);
   const [icon, setIcon] = useState(HABIT_ICONS[0]);
   const isEditing = !!initialData;
 
   useEffect(() => {
     if (visible) {
-      if (initialData) { setName(initialData.name || ''); setDescription(initialData.description || ''); setColor(initialData.color || HABIT_COLORS[0]); setIcon(initialData.icon || HABIT_ICONS[0]); }
-      else { setName(''); setDescription(''); setColor(HABIT_COLORS[Math.floor(Math.random() * HABIT_COLORS.length)]); setIcon(HABIT_ICONS[Math.floor(Math.random() * HABIT_ICONS.length)]); }
+      if (initialData) { setName(initialData.name || ''); setDescription(initialData.description || ''); setColor(initialData.color || habitColors[0]); setIcon(initialData.icon || HABIT_ICONS[0]); }
+      else { setName(''); setDescription(''); setColor(habitColors[Math.floor(Math.random() * habitColors.length)]); setIcon(HABIT_ICONS[Math.floor(Math.random() * HABIT_ICONS.length)]); }
     }
   }, [visible, initialData]);
 
@@ -150,7 +151,7 @@ function AddHabitModal({ visible, onClose, onSave, initialData }) {
 
   return (
     <Modal visible={visible} transparent animationType="none">
-      <Animated.View entering={FadeIn.duration(200)} style={styles.modalOverlay}>
+      <Animated.View entering={FadeIn.duration(200)} style={[styles.modalOverlay, { backgroundColor: theme.colors.overlay }]}>
         <TouchableOpacity activeOpacity={1} style={{ flex: 1 }} onPress={onClose} />
         <Animated.View entering={FadeInDown.springify().damping(16).stiffness(120)} style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
           <View style={styles.modalHandle} />
@@ -170,7 +171,7 @@ function AddHabitModal({ visible, onClose, onSave, initialData }) {
 
           <Text style={[styles.modalLabel, { color: theme.colors.textMuted }]}>Color</Text>
           <View style={styles.colorRow}>
-            {HABIT_COLORS.map(c => (
+            {habitColors.map(c => (
               <TouchableOpacity key={c} style={[styles.colorBtn, { backgroundColor: c }, color === c && { borderWidth: 2, borderColor: theme.colors.text }]} onPress={() => setColor(c)} />
             ))}
           </View>
@@ -185,7 +186,7 @@ function AddHabitModal({ visible, onClose, onSave, initialData }) {
 }
 
 export default function HabitScreen() {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const { state, addHabit, updateHabit, deleteHabit, toggleHabitDate } = useApp();
   const [modalVisible, setModalVisible] = useState(false);
   const [editingHabit, setEditingHabit] = useState(null);
@@ -216,7 +217,7 @@ export default function HabitScreen() {
 
       <Animated.View entering={ZoomIn.duration(400).delay(200).springify().damping(10)}>
         <TouchableOpacity style={[styles.fab, { backgroundColor: theme.colors.accent }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setEditingHabit(null); setModalVisible(true); }} activeOpacity={0.8}>
-          <Ionicons name="add" size={24} color="#FFF" />
+          <Ionicons name="add" size={24} color={isDark ? '#fff' : '#000'} />
         </TouchableOpacity>
       </Animated.View>
 
@@ -261,7 +262,7 @@ const styles = StyleSheet.create({
     width: 80, justifyContent: 'center', alignItems: 'center',
     borderRadius: 10, marginBottom: 10, marginLeft: 4,
   },
-  swipeText: { fontSize: 10, color: '#FFF', marginTop: 4, fontWeight: '600' },
+  swipeText: { fontSize: 10, marginTop: 4, fontWeight: '600' },
 
   emptyState: { alignItems: 'center', paddingTop: 80 },
   emptyTitle: { fontSize: 16, fontWeight: '600', marginTop: 12, marginBottom: 4 },
@@ -273,7 +274,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center', elevation: 4,
   },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
   modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 24, paddingBottom: 40, maxHeight: '85%' },
   modalHandle: { width: 32, height: 3, borderRadius: 1.5, alignSelf: 'center', marginTop: 12, marginBottom: 16 },
   modalTitle: { fontSize: 22, fontWeight: '700', fontFamily: serifFont, marginBottom: 20 },

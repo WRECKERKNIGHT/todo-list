@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
+import { BlurView } from 'expo-blur';
 import Animated, {
   FadeInDown, FadeInUp, FadeIn, FadeInLeft, FadeInRight,
   ZoomIn, BounceIn,
@@ -10,10 +11,9 @@ import { useTheme } from '../theme/ThemeContext';
 
 const serifFont = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 
-export function GlassCard({ children, delay = 0, style, onPress }) {
+export function GlassCard({ children, delay = 0, style, intensity = 40, onPress }) {
   const { theme, isDark } = useTheme();
   const scale = useSharedValue(1);
-  const cardStyle = theme.cardStyle || {};
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -22,57 +22,61 @@ export function GlassCard({ children, delay = 0, style, onPress }) {
   const handlePressIn = () => { scale.value = withSpring(0.97, { damping: 15, stiffness: 400 }); };
   const handlePressOut = () => { scale.value = withSpring(1, { damping: 15, stiffness: 400 }); };
 
-  const cardBg = cardStyle.backgroundColor || theme.colors.surface;
-  const cardBorder = cardStyle.borderColor || theme.colors.border;
-
   return (
     <Animated.View
       entering={FadeInDown.duration(500).delay(delay).springify().damping(18).stiffness(120)}
-      style={[{
-        backgroundColor: cardBg,
-        borderWidth: 1,
-        borderColor: cardBorder,
-        borderRadius: 16,
-        overflow: 'hidden',
-      }, animatedStyle, style]}
+      style={[{ borderRadius: 16, overflow: 'hidden' }, animatedStyle, style]}
     >
-      {onPress ? (
-        <Animated.View onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={onPress} style={{ padding: 16 }}>
-          {children}
-        </Animated.View>
-      ) : (
-        <View style={{ padding: 16 }}>{children}</View>
-      )}
+      <BlurView intensity={isDark ? intensity : intensity - 10} tint={isDark ? 'dark' : 'light'} style={styles.blurContainer}>
+        <View style={[styles.glassBorder, { borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.5)' }]}>
+          {onPress ? (
+            <Animated.View onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={onPress} style={{ padding: 16 }}>
+              {children}
+            </Animated.View>
+          ) : (
+            <View style={{ padding: 16 }}>{children}</View>
+          )}
+        </View>
+      </BlurView>
     </Animated.View>
   );
 }
 
 export function NeumorphCard({ children, delay = 0, style }) {
   const { theme, isDark } = useTheme();
-  const cardStyle = theme.cardStyle || {};
 
-  const shadowStyle = isDark ? {
+  const outerShadow = isDark ? {
     shadowColor: '#000',
     shadowOffset: { width: 4, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOpacity: 0.6,
+    shadowRadius: 10,
+    elevation: 8,
   } : {
-    shadowColor: '#D5CFC5',
+    shadowColor: '#BEB8AE',
     shadowOffset: { width: 6, height: 6 },
     shadowOpacity: 0.5,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowRadius: 14,
+    elevation: 8,
+  };
+
+  const innerHighlight = isDark ? {
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderColor: 'rgba(255,255,255,0.04)',
+  } : {
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderColor: 'rgba(255,255,255,0.7)',
   };
 
   return (
     <Animated.View
       entering={FadeInDown.duration(500).delay(delay).springify().damping(18).stiffness(120)}
       style={[{
-        backgroundColor: cardStyle.backgroundColor || theme.colors.surface,
-        borderRadius: 16,
+        backgroundColor: theme.colors.surface,
+        borderRadius: 18,
         padding: 16,
-      }, shadowStyle, style]}
+      }, outerShadow, innerHighlight, style]}
     >
       {children}
     </Animated.View>
@@ -80,36 +84,52 @@ export function NeumorphCard({ children, delay = 0, style }) {
 }
 
 export function FluidCard({ children, delay = 0, style }) {
-  const { theme } = useTheme();
-  const cardStyle = theme.cardStyle || {};
+  const { theme, isDark } = useTheme();
   const breathe = useSharedValue(0);
 
   React.useEffect(() => {
     breathe.value = withRepeat(
       withSequence(
-        withTiming(1, { duration: 4000, easing: Easing.inOut(Easing.sin) }),
-        withTiming(0, { duration: 4000, easing: Easing.inOut(Easing.sin) }),
+        withTiming(1, { duration: 6000, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0, { duration: 6000, easing: Easing.inOut(Easing.sin) }),
       ),
       -1, false,
     );
   }, []);
 
   const animatedStyle = useAnimatedStyle(() => ({
-    borderRadius: interpolate(breathe.value, [0, 1], [20, 28]),
-    transform: [{ scale: interpolate(breathe.value, [0, 1], [1, 1.005]) }],
+    borderRadius: interpolate(breathe.value, [0, 1], [18, 26]),
+    transform: [{ scale: interpolate(breathe.value, [0, 1], [0.998, 1.002]) }],
   }));
+
+  const glowOpacity = interpolate(breathe.value, [0, 1], [0, 0.06]);
 
   return (
     <Animated.View
       entering={FadeInDown.duration(500).delay(delay).springify().damping(18).stiffness(120)}
-      style={[{
-        backgroundColor: cardStyle.backgroundColor || theme.colors.surface,
-        borderWidth: 1,
-        borderColor: cardStyle.borderColor || theme.colors.border,
-        padding: 16,
-      }, animatedStyle, style]}
+      style={[style, animatedStyle]}
     >
-      {children}
+      <View style={{
+        backgroundColor: isDark ? 'rgba(30,27,38,0.9)' : 'rgba(255,252,247,0.95)',
+        borderWidth: 1,
+        borderColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+        padding: 16,
+        overflow: 'hidden',
+      }}>
+        <View style={{
+          position: 'absolute', top: -20, right: -20,
+          width: 80, height: 80, borderRadius: 40,
+          backgroundColor: theme.colors.primary,
+          opacity: glowOpacity,
+        }} />
+        <View style={{
+          position: 'absolute', bottom: -30, left: -30,
+          width: 100, height: 100, borderRadius: 50,
+          backgroundColor: theme.colors.secondary || theme.colors.primary,
+          opacity: glowOpacity * 0.7,
+        }} />
+        {children}
+      </View>
     </Animated.View>
   );
 }
@@ -213,8 +233,8 @@ export function BreathingGlow({ color, size = 200, style }) {
   }, []);
 
   const animatedStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(sv.value, [0, 1], [0.05, 0.2]),
-    transform: [{ scale: interpolate(sv.value, [0, 1], [0.9, 1.1]) }],
+    opacity: interpolate(sv.value, [0, 1], [0.05, 0.25]),
+    transform: [{ scale: interpolate(sv.value, [0, 1], [0.85, 1.15]) }],
   }));
 
   return (
@@ -271,6 +291,13 @@ export function PulseDot({ color, size = 8, style }) {
 }
 
 const styles = StyleSheet.create({
+  blurContainer: {
+    borderRadius: 16,
+  },
+  glassBorder: {
+    borderRadius: 16,
+    borderWidth: 1,
+  },
   dividerContainer: {
     flexDirection: 'row',
     alignItems: 'center',

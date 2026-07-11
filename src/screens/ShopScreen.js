@@ -20,18 +20,29 @@ const COLS = 2;
 const CARD_W = (width - 60) / COLS;
 
 const LOOT_BOXES = [
-  { id: 'loot_bronze', name: 'Bronze Chest', price: 50, tier: 'bronze', color: '#CD7F32', rewards: [{ type: 'coins', min: 20, max: 60 }, { type: 'xp', min: 30, max: 80 }] },
-  { id: 'loot_silver', name: 'Silver Chest', price: 120, tier: 'silver', color: '#C0C0C0', rewards: [{ type: 'coins', min: 60, max: 150 }, { type: 'xp', min: 80, max: 200 }] },
-  { id: 'loot_gold', name: 'Golden Chest', price: 250, tier: 'gold', color: '#FFD700', rewards: [{ type: 'coins', min: 150, max: 400 }, { type: 'xp', min: 200, max: 500 }, { type: 'bonus', chance: 0.3 }] },
+  { id: 'loot_bronze', name: 'Bronze Chest', price: 50, tier: 'bronze', rewards: [{ type: 'coins', min: 20, max: 60 }, { type: 'xp', min: 30, max: 80 }] },
+  { id: 'loot_silver', name: 'Silver Chest', price: 120, tier: 'silver', rewards: [{ type: 'coins', min: 60, max: 150 }, { type: 'xp', min: 80, max: 200 }] },
+  { id: 'loot_gold', name: 'Golden Chest', price: 250, tier: 'gold', rewards: [{ type: 'coins', min: 150, max: 400 }, { type: 'xp', min: 200, max: 500 }, { type: 'bonus', chance: 0.3 }] },
 ];
 
 const STREAK_MULTIPLIERS = [
-  { days: 0, label: 'None', multiplier: 1, color: '#4E4860' },
-  { days: 3, label: 'Bronze', multiplier: 1.25, color: '#CD7F32' },
-  { days: 7, label: 'Silver', multiplier: 1.5, color: '#C0C0C0' },
-  { days: 14, label: 'Gold', multiplier: 2, color: '#FFD700' },
-  { days: 30, label: 'Diamond', multiplier: 3, color: '#B9F2FF' },
+  { days: 0, label: 'None', multiplier: 1 },
+  { days: 3, label: 'Bronze', multiplier: 1.25 },
+  { days: 7, label: 'Silver', multiplier: 1.5 },
+  { days: 14, label: 'Gold', multiplier: 2 },
+  { days: 30, label: 'Diamond', multiplier: 3 },
 ];
+
+const getTierColor = (tier, theme) => {
+  switch (tier?.toLowerCase()) {
+    case 'bronze': return theme.colors.warning;
+    case 'silver': return theme.colors.textSecondary;
+    case 'gold': return theme.colors.gold;
+    case 'diamond': return theme.colors.primaryLight;
+    case 'none': return theme.colors.textMuted;
+    default: return theme.colors.primary;
+  }
+};
 
 function PurchaseCelebration({ visible, onComplete, theme }) {
   const opacity = useSharedValue(0);
@@ -71,8 +82,8 @@ function PurchaseCelebration({ visible, onComplete, theme }) {
   if (!visible) return null;
 
   return (
-    <Animated.View style={[styles.celebrationOverlay, containerStyle]}>
-      <View style={[styles.celebrationCard, { backgroundColor: theme.colors.surface }]}>
+    <Animated.View style={[styles.celebrationOverlay, { backgroundColor: theme.colors.overlay }, containerStyle]}>
+      <View style={[styles.celebrationCard, { backgroundColor: theme.colors.surface, shadowColor: theme.colors.text }]}>
         <Ionicons name="checkmark-circle" size={48} color={theme.colors.success} />
         <Text style={[styles.celebrationText, { color: theme.colors.text }]}>Purchased!</Text>
       </View>
@@ -95,6 +106,7 @@ function PurchaseCelebration({ visible, onComplete, theme }) {
 
 function LootBoxCard({ box, owned, canAfford, onOpen, index }) {
   const { theme } = useTheme();
+  const tierColor = getTierColor(box.tier, theme);
   const scale = useSharedValue(1);
   const glow = useSharedValue(0);
   const s = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
@@ -137,15 +149,15 @@ function LootBoxCard({ box, owned, canAfford, onOpen, index }) {
         onPressIn={() => { scale.value = withSpring(0.95, { damping: 12, stiffness: 400 }); }}
         onPressOut={() => { scale.value = withSpring(1, { damping: 12, stiffness: 400 }); }}
         activeOpacity={1}
-        style={[styles.lootCard, { backgroundColor: theme.colors.surface, borderColor: box.color + '40', borderWidth: 2 }]}
+        style={[styles.lootCard, { backgroundColor: theme.colors.surface, borderColor: tierColor + '40', borderWidth: 2 }]}
       >
-        <Animated.View style={[styles.lootGlow, { backgroundColor: box.color }, glowStyle]} />
-        <View style={[styles.lootIconWrap, { backgroundColor: box.color + '20' }]}>
-          <Ionicons name="gift" size={28} color={box.color} />
+        <Animated.View style={[styles.lootGlow, { backgroundColor: tierColor }, glowStyle]} />
+        <View style={[styles.lootIconWrap, { backgroundColor: tierColor + '20' }]}>
+          <Ionicons name="gift" size={28} color={tierColor} />
         </View>
         <Text style={[styles.lootName, { color: theme.colors.text }]}>{box.name}</Text>
         <Text style={[styles.lootDesc, { color: theme.colors.textSecondary }]}>Mystery rewards inside</Text>
-        <View style={[styles.priceBadge, { backgroundColor: canAfford ? box.color + '15' : theme.colors.surfaceLight }]}>
+        <View style={[styles.priceBadge, { backgroundColor: canAfford ? tierColor + '15' : theme.colors.surfaceLight }]}>
           <Ionicons name="diamond" size={10} color={canAfford ? theme.colors.gold : theme.colors.textMuted} />
           <Text style={[styles.priceText, { color: canAfford ? theme.colors.gold : theme.colors.textMuted }]}>{box.price}</Text>
         </View>
@@ -178,10 +190,10 @@ function LootRewardModal({ visible, reward, box, onClose, theme }) {
   if (!visible || !reward) return null;
 
   return (
-    <Animated.View style={[styles.lootOverlay, overlayStyle]}>
-      <Animated.View style={[styles.lootModal, { backgroundColor: theme.colors.surface }, cardStyle]}>
-        <View style={[styles.lootModalIcon, { backgroundColor: (box?.color || theme.colors.primary) + '20' }]}>
-          <Ionicons name="gift" size={36} color={box?.color || theme.colors.primary} />
+    <Animated.View style={[styles.lootOverlay, { backgroundColor: theme.colors.overlay }, overlayStyle]}>
+      <Animated.View style={[styles.lootModal, { backgroundColor: theme.colors.surface, shadowColor: theme.colors.text }, cardStyle]}>
+        <View style={[styles.lootModalIcon, { backgroundColor: getTierColor(box?.tier, theme) + '20' }]}>
+          <Ionicons name="gift" size={36} color={getTierColor(box?.tier, theme)} />
         </View>
         <Text style={[styles.lootModalTitle, { color: theme.colors.text }]}>{box?.name || 'Chest'}</Text>
 
@@ -209,7 +221,7 @@ function LootRewardModal({ visible, reward, box, onClose, theme }) {
         )}
 
         <TouchableOpacity onPress={onClose} style={[styles.lootCloseBtn, { backgroundColor: theme.colors.primary }]}>
-          <Text style={styles.lootCloseText}>Collect</Text>
+          <Text style={[styles.lootCloseText, { color: theme.colors.background }]}>Collect</Text>
         </TouchableOpacity>
       </Animated.View>
     </Animated.View>
@@ -219,27 +231,28 @@ function LootRewardModal({ visible, reward, box, onClose, theme }) {
 function StreakMultiplier({ streakDays, theme }) {
   const currentTier = [...STREAK_MULTIPLIERS].reverse().find(t => streakDays >= t.days) || STREAK_MULTIPLIERS[0];
   const nextTier = STREAK_MULTIPLIERS.find(t => t.days > streakDays);
+  const tierColor = getTierColor(currentTier.label, theme);
   const progress = nextTier
     ? (streakDays - currentTier.days) / (nextTier.days - currentTier.days)
     : 1;
 
   return (
-    <Animated.View entering={FadeInDown.delay(200).springify()} style={[styles.streakCard, { backgroundColor: theme.colors.surface, borderColor: currentTier.color + '30' }]}>
+    <Animated.View entering={FadeInDown.delay(200).springify()} style={[styles.streakCard, { backgroundColor: theme.colors.surface, borderColor: tierColor + '30' }]}>
       <View style={styles.streakHeader}>
-        <Ionicons name="flame" size={20} color={currentTier.color} />
+        <Ionicons name="flame" size={20} color={tierColor} />
         <Text style={[styles.streakTitle, { color: theme.colors.text }]}>Streak Multiplier</Text>
       </View>
       <View style={styles.streakInfo}>
-        <Text style={[styles.streakDays, { color: currentTier.color }]}>{streakDays} days</Text>
-        <View style={[styles.streakBadge, { backgroundColor: currentTier.color + '20' }]}>
-          <Text style={[styles.streakBadgeText, { color: currentTier.color }]}>{currentTier.label}</Text>
-          <Text style={[styles.streakMultiplier, { color: currentTier.color }]}>×{currentTier.multiplier}</Text>
+        <Text style={[styles.streakDays, { color: tierColor }]}>{streakDays} days</Text>
+        <View style={[styles.streakBadge, { backgroundColor: tierColor + '20' }]}>
+          <Text style={[styles.streakBadgeText, { color: tierColor }]}>{currentTier.label}</Text>
+          <Text style={[styles.streakMultiplier, { color: tierColor }]}>×{currentTier.multiplier}</Text>
         </View>
       </View>
       {nextTier && (
         <View style={styles.streakProgressWrap}>
           <View style={[styles.streakProgressBg, { backgroundColor: theme.colors.surfaceLight }]}>
-            <View style={[styles.streakProgressFill, { width: `${progress * 100}%`, backgroundColor: currentTier.color }]} />
+            <View style={[styles.streakProgressFill, { width: `${progress * 100}%`, backgroundColor: tierColor }]} />
           </View>
           <Text style={[styles.streakNext, { color: theme.colors.textMuted }]}>
             {nextTier.days - streakDays} days to {nextTier.label} (×{nextTier.multiplier})
@@ -536,11 +549,11 @@ const styles = StyleSheet.create({
   celebrationOverlay: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center', alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 100,
+    zIndex: 100,
   },
   celebrationCard: {
     padding: 32, borderRadius: 20, alignItems: 'center',
-    shadowOpacity: 0.3, shadowRadius: 20, shadowColor: '#000', elevation: 10,
+    shadowOpacity: 0.3, shadowRadius: 20, elevation: 10,
   },
   celebrationText: { fontSize: 20, fontWeight: '700', fontFamily: serifFont, marginTop: 12 },
   particle: { position: 'absolute', width: 8, height: 8, borderRadius: 4 },
@@ -548,11 +561,11 @@ const styles = StyleSheet.create({
   lootOverlay: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center', alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 100,
+    zIndex: 100,
   },
   lootModal: {
     width: width - 60, borderRadius: 24, padding: 28, alignItems: 'center',
-    shadowOpacity: 0.4, shadowRadius: 24, shadowColor: '#000', elevation: 12,
+    shadowOpacity: 0.4, shadowRadius: 24, elevation: 12,
   },
   lootModalIcon: {
     width: 80, height: 80, borderRadius: 24,
@@ -566,5 +579,5 @@ const styles = StyleSheet.create({
   },
   rewardText: { fontSize: 16, fontWeight: '700', fontFamily: serifFont },
   lootCloseBtn: { paddingHorizontal: 32, paddingVertical: 12, borderRadius: 12 },
-  lootCloseText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  lootCloseText: { fontSize: 15, fontWeight: '700' },
 });

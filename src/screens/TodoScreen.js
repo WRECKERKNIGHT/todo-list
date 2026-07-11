@@ -20,10 +20,10 @@ import VoiceCommandModal from '../components/VoiceCommandModal';
 const { width } = Dimensions.get('window');
 const serifFont = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 
-const PRIORITIES = [
-  { label: 'Low', value: 'low', color: '#5B9A6F', icon: 'leaf' },
-  { label: 'Med', value: 'medium', color: '#C9A84C', icon: 'flame' },
-  { label: 'High', value: 'high', color: '#C25B4E', icon: 'flash' },
+const getPriorityOptions = (theme) => [
+  { label: 'Low', value: 'low', color: theme.colors.success, icon: 'leaf' },
+  { label: 'Med', value: 'medium', color: theme.colors.primary, icon: 'flame' },
+  { label: 'High', value: 'high', color: theme.colors.error, icon: 'flash' },
 ];
 
 const CATEGORIES = [
@@ -67,7 +67,7 @@ function AnimatedCheckbox({ checked, color }) {
     <Animated.View style={[styles.checkbox, style]}>
       {checked && (
         <Animated.View entering={BounceIn.duration(300).springify().damping(8)}>
-          <Ionicons name="checkmark" size={12} color="#FFF" />
+          <Ionicons name="checkmark" size={12} color={theme.colors.text} />
         </Animated.View>
       )}
     </Animated.View>
@@ -90,14 +90,14 @@ function TodoItem({ todo, onToggle, onDelete, onEdit, onToggleSubtask, index, co
     onToggle(todo.id);
   };
 
-  const cardStyle = useAnimatedStyle(() => ({
+  const itemAnimStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }));
 
   const renderRightActions = (progress, dragX) => (
     <Animated.View entering={FadeInRight.duration(200)} style={[styles.swipeAction, { backgroundColor: theme.colors.error }]}>
-      <Ionicons name="trash" size={20} color="#FFF" />
-      <Text style={styles.swipeText}>Delete</Text>
+      <Ionicons name="trash" size={20} color={theme.colors.text} />
+      <Text style={[styles.swipeText, { color: theme.colors.text }]}>Delete</Text>
     </Animated.View>
   );
 
@@ -111,12 +111,12 @@ function TodoItem({ todo, onToggle, onDelete, onEdit, onToggleSubtask, index, co
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
         onDelete(todo.id);
       }} friction={2} rightThreshold={80}>
-        <Animated.View style={cardStyle}>
+        <Animated.View style={itemAnimStyle}>
           <TouchableOpacity
             onPress={handlePress}
             onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onEdit(todo); }}
             activeOpacity={1}
-            style={[styles.todoItem, cardStyle, { borderWidth: 1, borderLeftColor: pColor, borderLeftWidth: 3, padding }, isGrid && styles.todoItemGrid]}
+            style={[styles.todoItem, cardStyle, { borderWidth: 1, borderLeftColor: pColor, borderLeftWidth: 3, padding }, isGrid && styles.todoItemGrid, itemAnimStyle]}
           >
             <AnimatedCheckbox checked={todo.completed} />
 
@@ -177,7 +177,7 @@ function TodoItem({ todo, onToggle, onDelete, onEdit, onToggleSubtask, index, co
 }
 
 function AddTodoModal({ visible, onClose, onSave, initialData }) {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('medium');
@@ -232,7 +232,7 @@ function AddTodoModal({ visible, onClose, onSave, initialData }) {
 
   return (
     <Modal visible={visible} transparent animationType="none">
-      <Animated.View entering={FadeIn.duration(200)} style={styles.modalOverlay}>
+      <Animated.View entering={FadeIn.duration(200)} style={[styles.modalOverlay, { backgroundColor: theme.colors.overlay }]}>
         <TouchableOpacity activeOpacity={1} style={{ flex: 1 }} onPress={onClose} />
         <Animated.View entering={SlideInDown.springify().damping(16).stiffness(120)} style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
           <View style={styles.modalHandle} />
@@ -243,7 +243,7 @@ function AddTodoModal({ visible, onClose, onSave, initialData }) {
 
           <Text style={[styles.modalLabel, { color: theme.colors.textMuted }]}>Priority</Text>
           <View style={styles.optionRow}>
-            {PRIORITIES.map(p => (
+            {getPriorityOptions(theme).map(p => (
               <TouchableOpacity key={p.value} style={[styles.optionBtn, { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.border }, priority === p.value && { backgroundColor: p.color + '15', borderColor: p.color }]} onPress={() => setPriority(p.value)}>
                 <Text style={[styles.optionText, { color: theme.colors.textSecondary }, priority === p.value && { color: p.color }]}>{p.label}</Text>
               </TouchableOpacity>
@@ -265,7 +265,7 @@ function AddTodoModal({ visible, onClose, onSave, initialData }) {
 
           <TouchableOpacity style={styles.reminderToggle} onPress={() => setHasReminder(!hasReminder)}>
             <View style={[styles.modalCheckbox, hasReminder && { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary }]}>
-              {hasReminder && <Ionicons name="checkmark" size={10} color="#FFF" />}
+              {hasReminder && <Ionicons name="checkmark" size={10} color={isDark ? '#fff' : '#000'} />}
             </View>
             <Text style={[styles.reminderText, { color: theme.colors.textSecondary }]}>Set reminder</Text>
           </TouchableOpacity>
@@ -285,7 +285,7 @@ function AddTodoModal({ visible, onClose, onSave, initialData }) {
           <View style={styles.subtaskInputRow}>
             <TextInput style={[styles.subtaskInput, { backgroundColor: theme.colors.surfaceLight, color: theme.colors.text, borderColor: theme.colors.border }]} placeholder="Add subtask..." placeholderTextColor={theme.colors.textMuted} value={subtaskInput} onChangeText={setSubtaskInput} onSubmitEditing={addSubtask} />
             <TouchableOpacity style={[styles.subtaskAddBtn, { backgroundColor: theme.colors.primary }]} onPress={addSubtask}>
-              <Ionicons name="add" size={18} color="#FFF" />
+              <Ionicons name="add" size={18} color={isDark ? '#fff' : '#000'} />
             </TouchableOpacity>
           </View>
           {subtasks.length > 0 && (
@@ -330,7 +330,7 @@ function FilterChip({ f, active, theme, onPress }) {
 }
 
 export default function TodoScreen() {
-  const { theme, layoutView, cardDensity, setLayoutView, setCardDensity } = useTheme();
+  const { theme, isDark, layoutView, cardDensity, setLayoutView, setCardDensity } = useTheme();
   const { state, addTodo, updateTodo, deleteTodo, toggleTodo, addSubtask, toggleSubtask } = useApp();
   const [modalVisible, setModalVisible] = useState(false);
   const [editingTodo, setEditingTodo] = useState(null);
@@ -421,19 +421,19 @@ export default function TodoScreen() {
 
       <Animated.View entering={ZoomIn.duration(400).delay(200).springify().damping(10)} style={[styles.fabWrap, fabStyle]}>
         <TouchableOpacity
-          style={[styles.voiceFab, { backgroundColor: theme.colors.surface }]}
+          style={[styles.voiceFab, { backgroundColor: theme.colors.surface }, theme.shadows.medium]}
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setVoiceVisible(true); }}
         >
           <Ionicons name="mic" size={18} color={theme.colors.primary} />
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.fab, { backgroundColor: theme.colors.primary }]}
+          style={[styles.fab, { backgroundColor: theme.colors.primary }, theme.shadows.glow]}
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setEditingTodo(null); setModalVisible(true); }}
           onPressIn={() => { fabScale.value = withSpring(0.88, { damping: 10, stiffness: 300 }); }}
           onPressOut={() => { fabScale.value = withSpring(1, { damping: 10, stiffness: 300 }); }}
           activeOpacity={1}
         >
-          <Ionicons name="add" size={24} color="#FFF" />
+          <Ionicons name="add" size={24} color={isDark ? '#fff' : '#000'} />
         </TouchableOpacity>
       </Animated.View>
 
@@ -502,7 +502,7 @@ const styles = StyleSheet.create({
     width: 80, justifyContent: 'center', alignItems: 'center',
     borderRadius: 10, marginBottom: 8, marginLeft: 4,
   },
-  swipeText: { fontSize: 10, color: '#FFF', marginTop: 4, fontWeight: '600' },
+  swipeText: { fontSize: 10, marginTop: 4, fontWeight: '600' },
 
   emptyState: { alignItems: 'center', paddingTop: 60 },
   emptyTitle: { fontSize: 16, fontWeight: '600', marginTop: 12, marginBottom: 4 },
@@ -512,7 +512,6 @@ const styles = StyleSheet.create({
   voiceFab: {
     width: 44, height: 44, borderRadius: 22,
     justifyContent: 'center', alignItems: 'center',
-    elevation: 4, shadowOpacity: 0.3, shadowRadius: 8, shadowColor: '#000',
   },
   fab: {
     width: 52, height: 52, borderRadius: 26,
@@ -520,12 +519,12 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
   modalContent: {
     borderTopLeftRadius: 20, borderTopRightRadius: 20,
     paddingHorizontal: 24, paddingBottom: 40, maxHeight: '85%',
   },
-  modalHandle: { width: 32, height: 3, borderRadius: 1.5, alignSelf: 'center', marginTop: 12, marginBottom: 16 },
+  modalHandle: { width: 32, height: 3, borderRadius: 1.5, alignSelf: 'center', marginTop: 12, marginBottom: 16, backgroundColor: 'rgba(255,255,255,0.2)' },
   modalTitle: { fontSize: 22, fontWeight: '700', fontFamily: serifFont, marginBottom: 20 },
 
   input: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 14, fontSize: 14, marginBottom: 12, borderWidth: 1 },

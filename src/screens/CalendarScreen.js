@@ -33,7 +33,7 @@ function CalendarDay({ day, isToday, hasEvents, isSelected, onPress, disabled })
         activeOpacity={1}
         style={[styles.dayCell, isSelected && { backgroundColor: theme.colors.primary }, isToday && !isSelected && { borderColor: theme.colors.primary + '40', borderWidth: 1, borderRadius: DAY_SIZE / 2 }]}
       >
-        <Text style={[styles.dayText, { color: theme.colors.text }, isToday && !isSelected && { color: theme.colors.primary, fontWeight: '700' }, isSelected && { color: '#FFF', fontWeight: '600' }, disabled && { color: 'transparent' }]}>{day}</Text>
+        <Text style={[styles.dayText, { color: theme.colors.text }, isToday && !isSelected && { color: theme.colors.primary, fontWeight: '700' }, isSelected && { color: theme.colors.text, fontWeight: '600' }, disabled && { color: 'transparent' }]}>{day}</Text>
         {hasEvents && !isSelected && <View style={[styles.dayDot, { backgroundColor: theme.colors.primary }]} />}
       </TouchableOpacity>
     </Animated.View>

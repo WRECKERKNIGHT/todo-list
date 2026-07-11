@@ -17,7 +17,7 @@ const BREAK_DURATION = 5 * 60;
 const LONG_BREAK_DURATION = 15 * 60;
 const serifFont = Platform.OS === 'ios' ? 'Georgia' : 'serif';
 
-function TimerRing({ progress, isBreak, theme }) {
+function TimerRing({ progress, isBreak, theme, timeLeft, formatTime }) {
   const ringSv = useSharedValue(0);
 
   useEffect(() => {
@@ -49,7 +49,7 @@ function TimerRing({ progress, isBreak, theme }) {
           <View style={[styles.glow, { backgroundColor: isBreak ? theme.colors.success : theme.colors.primary, opacity: glowOpacity }]} />
           <View style={[styles.timerInner, { backgroundColor: theme.colors.background }]}>
             <Ionicons name={isBreak ? 'cafe-outline' : 'flame-outline'} size={24} color={isBreak ? theme.colors.success : theme.colors.primary} style={{ marginBottom: 12 }} />
-            <AnimatedTimerText isBreak={isBreak} theme={theme} />
+            <AnimatedTimerText isBreak={isBreak} theme={theme} timeLeft={timeLeft} formatTime={formatTime} />
             <Text style={[styles.timerLabel, { color: theme.colors.textMuted }]}>{isBreak ? 'Break' : 'Focus'}</Text>
           </View>
         </View>
@@ -58,10 +58,10 @@ function TimerRing({ progress, isBreak, theme }) {
   );
 }
 
-function AnimatedTimerText({ isBreak, theme }) {
+function AnimatedTimerText({ isBreak, theme, timeLeft, formatTime }) {
   return (
     <Text style={[styles.timerText, { color: theme.colors.text }]}>
-      {null}
+      {formatTime(timeLeft)}
     </Text>
   );
 }
@@ -142,7 +142,7 @@ export default function PomodoroScreen() {
       </Animated.View>
 
       <View style={styles.timerContainer}>
-        <TimerRing progress={progress} isBreak={isBreak} theme={theme} />
+        <TimerRing progress={progress} isBreak={isBreak} theme={theme} timeLeft={timeLeft} formatTime={formatTime} />
         <ProgressDots sessions={sessions} theme={theme} />
       </View>
 
@@ -162,7 +162,7 @@ export default function PomodoroScreen() {
             playBtnScale.value = withSequence(withSpring(0.88, { damping: 10, stiffness: 300 }), withSpring(1, { damping: 10, stiffness: 300 }));
             setIsRunning(!isRunning);
           }}>
-            <Ionicons name={isRunning ? 'pause' : 'play'} size={28} color="#FFF" style={{ marginLeft: isRunning ? 0 : 3 }} />
+            <Ionicons name={isRunning ? 'pause' : 'play'} size={28} color={theme.colors.text} style={{ marginLeft: isRunning ? 0 : 3 }} />
           </TouchableOpacity>
         </Animated.View>
 
