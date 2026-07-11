@@ -350,7 +350,11 @@ function QuickLinksWidget({ todayTodos, state, navigation, delay }) {
       <QuickLink title="Trophies" subtitle="Achievements" icon="trophy-outline" color={theme.colors.gold} count={state.achievements.filter(a => a.unlocked).length} delay={delay + 140} onPress={() => navigation.navigate('Achievements')} />
       <QuickLink title="Guild Hall" subtitle="Join forces" icon="people-outline" color={theme.colors.secondary} delay={delay + 150} onPress={() => navigation.navigate('Guild')} />
       <QuickLink title="Shop" subtitle="Spend coins" icon="storefront-outline" color={theme.colors.gold} delay={delay + 160} onPress={() => navigation.navigate('Shop')} />
-      <QuickLink title="Settings" subtitle="Configure" icon="settings-outline" color={theme.colors.textMuted} delay={delay + 180} onPress={() => navigation.navigate('Settings')} />
+      <QuickLink title="Eisenhower" subtitle="Priority matrix" icon="grid-outline" color={theme.colors.error} delay={delay + 170} onPress={() => navigation.navigate('EisenhowerMatrix')} />
+      <QuickLink title="Analytics" subtitle="Productivity data" icon="bar-chart-outline" color={theme.colors.success} delay={delay + 180} onPress={() => navigation.navigate('Analytics')} />
+      <QuickLink title="Rewards Hub" subtitle="Daily rewards & boxes" icon="gift-outline" color={theme.colors.gold} delay={delay + 190} onPress={() => navigation.navigate('GamificationHub')} />
+      <QuickLink title="Widgets" subtitle="Dashboard widgets" icon="apps-outline" color={theme.colors.secondary} delay={delay + 200} onPress={() => navigation.navigate('Widgets')} />
+      <QuickLink title="Settings" subtitle="Configure" icon="settings-outline" color={theme.colors.textMuted} delay={delay + 210} onPress={() => navigation.navigate('Settings')} />
     </View>
   );
 }

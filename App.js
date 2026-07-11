@@ -32,6 +32,10 @@ import HeatmapScreen from './src/screens/HeatmapScreen';
 import TimeTrackingScreen from './src/screens/TimeTrackingScreen';
 import GuildScreen from './src/screens/GuildScreen';
 import DisciplineScreen from './src/screens/DisciplineScreen';
+import EisenhowerMatrix from './src/screens/EisenhowerMatrix';
+import AnalyticsScreen from './src/screens/AnalyticsScreen';
+import GamificationHub from './src/screens/GamificationHub';
+import WidgetsScreen from './src/screens/WidgetsScreen';
 import GlobalSearch from './src/components/GlobalSearch';
 
 const Stack = createNativeStackNavigator();
@@ -194,6 +198,10 @@ function AppContent() {
         <Stack.Screen name="TimeTracking" component={TimeTrackingScreen} />
         <Stack.Screen name="Guild" component={GuildScreen} />
         <Stack.Screen name="Discipline" component={DisciplineScreen} />
+        <Stack.Screen name="EisenhowerMatrix" component={EisenhowerMatrix} />
+        <Stack.Screen name="Analytics" component={AnalyticsScreen} />
+        <Stack.Screen name="GamificationHub" component={GamificationHub} />
+        <Stack.Screen name="Widgets" component={WidgetsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -18,6 +18,21 @@ const CONSISTENCY_BONUS_THRESHOLD = 80; // % needed for bonus
 const CONSISTENCY_BONUS_XP = 50;
 const CONSISTENCY_BONUS_COINS = 25;
 
+const DAILY_REWARDS = [10, 15, 20, 25, 30, 40, 50];
+const MYSTERY_BOX_CHANCES = { common: 0.60, rare: 0.25, epic: 0.10, legendary: 0.05 };
+const MYSTERY_BOX_REWARDS = {
+  common: [{ type: 'coins', amount: 10 }, { type: 'coins', amount: 15 }, { type: 'xp', amount: 20 }],
+  rare: [{ type: 'coins', amount: 30 }, { type: 'xp', amount: 50 }, { type: 'xp_boost', amount: 1 }],
+  epic: [{ type: 'coins', amount: 75 }, { type: 'xp', amount: 100 }, { type: 'protection', amount: 1 }],
+  legendary: [{ type: 'coins', amount: 150 }, { type: 'xp', amount: 200 }, { type: 'xp_boost', amount: 3 }],
+};
+const SEASONAL_EVENTS = [
+  { id: 'speed_demon', name: 'Speed Demon', desc: 'Complete 5 tasks in 1 hour', icon: 'flash', reward: { xp: 100, coins: 50 }, duration: 3600000 },
+  { id: 'habit_marathon', name: 'Habit Marathon', desc: 'Complete all habits 3 days in a row', icon: 'trophy', reward: { xp: 150, coins: 75 }, duration: 259200000 },
+  { id: 'focus_master', name: 'Focus Master', desc: 'Complete 5 pomodoro sessions today', icon: 'timer', reward: { xp: 80, coins: 40 }, duration: 86400000 },
+  { id: 'night_warrior', name: 'Night Warrior', desc: 'Complete 3 tasks after 9 PM', icon: 'moon', reward: { xp: 60, coins: 30 }, duration: 86400000 },
+];
+
 const LEVELS = [
   { level: 1, xp: 0, title: 'Peasant' },
   { level: 2, xp: 100, title: 'Squire' },
@@ -119,6 +134,15 @@ const initialState = {
   longestStreak: 0,
   disciplineRank: 'Unranked',
   lastDisciplineCheck: null,
+  dailyLoginStreak: 0,
+  lastLoginDate: null,
+  dailyRewardClaimed: false,
+  mysteryBoxes: 0,
+  openedBoxes: [],
+  seasonalEvent: null,
+  seasonalEventProgress: 0,
+  seasonalEventCompleted: false,
+  xpLeaderboard: [],
 };
 
 function getLevel(xp) {
@@ -204,6 +228,14 @@ function appReducer(state, action) {
         totalFinesPaid: action.payload.totalFinesPaid || 0,
         longestStreak: action.payload.longestStreak || 0,
         disciplineRank: action.payload.disciplineRank || 'Unranked',
+        dailyLoginStreak: action.payload.dailyLoginStreak || 0,
+        lastLoginDate: action.payload.lastLoginDate || null,
+        dailyRewardClaimed: action.payload.dailyRewardClaimed || false,
+        mysteryBoxes: action.payload.mysteryBoxes || 0,
+        openedBoxes: action.payload.openedBoxes || [],
+        seasonalEvent: action.payload.seasonalEvent || null,
+        seasonalEventProgress: action.payload.seasonalEventProgress || 0,
+        seasonalEventCompleted: action.payload.seasonalEventCompleted || false,
         isLoading: false,
       };
 
@@ -390,6 +422,52 @@ case 'ADD_WEEKLY_REPORT': {
   return { ...state, weeklyReportCards: reports.slice(-12) };
 }
 
+    case 'CLAIM_DAILY_REWARD': {
+  const streak = state.dailyLoginStreak;
+  const rewardIndex = Math.min(streak, DAILY_REWARDS.length - 1);
+  const coins = DAILY_REWARDS[rewardIndex];
+  const mysteryChance = Math.random();
+  let newBox = 0;
+  if (mysteryChance < 0.15) newBox = 1;
+  return {
+    ...state,
+    coins: state.coins + coins + (newBox > 0 ? 0 : 0),
+    mysteryBoxes: state.mysteryBoxes + newBox,
+    dailyLoginStreak: streak + 1,
+    lastLoginDate: new Date().toISOString().split('T')[0],
+    dailyRewardClaimed: true,
+    xp: state.xp + (streak + 1) * 5,
+  };
+}
+case 'OPEN_MYSTERY_BOX': {
+  if (state.mysteryBoxes <= 0) return state;
+  const roll = Math.random();
+  let tier = 'common';
+  let cumulative = 0;
+  for (const [t, chance] of Object.entries(MYSTERY_BOX_CHANCES)) {
+    cumulative += chance;
+    if (roll < cumulative) { tier = t; break; }
+  }
+  const possibleRewards = MYSTERY_BOX_REWARDS[tier];
+  const reward = possibleRewards[Math.floor(Math.random() * possibleRewards.length)];
+  let newState = { ...state, mysteryBoxes: state.mysteryBoxes - 1, openedBoxes: [...state.openedBoxes, { tier, reward, date: new Date().toISOString() }].slice(-20) };
+  if (reward.type === 'coins') newState.coins = (newState.coins || 0) + reward.amount;
+  if (reward.type === 'xp') newState.xp = (newState.xp || 0) + reward.amount;
+  if (reward.type === 'xp_boost') newState.xpBoostEnd = Date.now() + reward.amount * 3600000;
+  if (reward.type === 'protection') newState.hasProtection = true;
+  return newState;
+}
+case 'SET_SEASONAL_EVENT': {
+  return { ...state, seasonalEvent: action.payload, seasonalEventProgress: 0, seasonalEventCompleted: false };
+}
+case 'UPDATE_SEASONAL_PROGRESS': {
+  return { ...state, seasonalEventProgress: action.payload };
+}
+case 'COMPLETE_SEASONAL_EVENT': {
+  if (!state.seasonalEvent) return state;
+  return { ...state, seasonalEventCompleted: true, coins: state.coins + (state.seasonalEvent.reward?.coins || 0), xp: state.xp + (state.seasonalEvent.reward?.xp || 0) };
+}
+
     default:
       return state;
   }
@@ -418,6 +496,10 @@ export function AppProvider({ children }) {
         viewMode: state.viewMode, moodEntries: state.moodEntries,
         consistencyHistory: state.consistencyHistory, weeklyReportCards: state.weeklyReportCards,
         totalFinesPaid: state.totalFinesPaid, longestStreak: state.longestStreak, disciplineRank: state.disciplineRank,
+        dailyLoginStreak: state.dailyLoginStreak, lastLoginDate: state.lastLoginDate,
+        dailyRewardClaimed: state.dailyRewardClaimed, mysteryBoxes: state.mysteryBoxes,
+        openedBoxes: state.openedBoxes, seasonalEvent: state.seasonalEvent,
+        seasonalEventProgress: state.seasonalEventProgress, seasonalEventCompleted: state.seasonalEventCompleted,
       };
       saveData(KEYS.APP_DATA, data);
     }
@@ -726,6 +808,12 @@ export function AppProvider({ children }) {
     return { weekStart: weekStartStr, avgScore, grade, totalTasks, totalCompleted, totalHabits, habitsDone, totalOverdue, daysLogged: weekHistory.length };
   }, [state.consistencyHistory, state.todos, state.habits]);
 
+  const claimDailyReward = useCallback(() => dispatch({ type: 'CLAIM_DAILY_REWARD' }), []);
+  const openMysteryBox = useCallback(() => dispatch({ type: 'OPEN_MYSTERY_BOX' }), []);
+  const setSeasonalEvent = useCallback((event) => dispatch({ type: 'SET_SEASONAL_EVENT', payload: event }), []);
+  const updateSeasonalProgress = useCallback((progress) => dispatch({ type: 'UPDATE_SEASONAL_PROGRESS', payload: progress }), []);
+  const completeSeasonalEvent = useCallback(() => dispatch({ type: 'COMPLETE_SEASONAL_EVENT' }), []);
+
   const searchAll = useCallback((query) => {
     const q = query.toLowerCase();
     return {
@@ -757,6 +845,7 @@ export function AppProvider({ children }) {
     getHeatmapData, getTotalTimeTracked,
     addMoodEntry,
     logDailyConsistency, applyOverdueFine, calculateConsistency, generateWeeklyReport, addWeeklyReport,
+    claimDailyReward, openMysteryBox, setSeasonalEvent, updateSeasonalProgress, completeSeasonalEvent,
     searchAll, exportData, getLevel,
   };
 
