@@ -2,14 +2,125 @@ import React from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import Animated, {
   FadeInDown, FadeInUp, FadeIn, FadeInLeft, FadeInRight,
-  ZoomIn, BounceIn, SlideInDown, SlideInRight,
+  ZoomIn, BounceIn,
   useSharedValue, useAnimatedStyle, withSpring, withTiming,
-  withDelay, withRepeat, withSequence, Easing, interpolate,
-  Extrapolation,
+  withRepeat, withSequence, Easing, interpolate,
 } from 'react-native-reanimated';
 import { useTheme } from '../theme/ThemeContext';
 
 const serifFont = Platform.OS === 'ios' ? 'Georgia' : 'serif';
+
+export function GlassCard({ children, delay = 0, style, onPress }) {
+  const { theme, isDark } = useTheme();
+  const scale = useSharedValue(1);
+  const cardStyle = theme.cardStyle || {};
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePressIn = () => { scale.value = withSpring(0.97, { damping: 15, stiffness: 400 }); };
+  const handlePressOut = () => { scale.value = withSpring(1, { damping: 15, stiffness: 400 }); };
+
+  const cardBg = cardStyle.backgroundColor || theme.colors.surface;
+  const cardBorder = cardStyle.borderColor || theme.colors.border;
+
+  return (
+    <Animated.View
+      entering={FadeInDown.duration(500).delay(delay).springify().damping(18).stiffness(120)}
+      style={[{
+        backgroundColor: cardBg,
+        borderWidth: 1,
+        borderColor: cardBorder,
+        borderRadius: 16,
+        overflow: 'hidden',
+      }, animatedStyle, style]}
+    >
+      {onPress ? (
+        <Animated.View onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={onPress} style={{ padding: 16 }}>
+          {children}
+        </Animated.View>
+      ) : (
+        <View style={{ padding: 16 }}>{children}</View>
+      )}
+    </Animated.View>
+  );
+}
+
+export function NeumorphCard({ children, delay = 0, style }) {
+  const { theme, isDark } = useTheme();
+  const cardStyle = theme.cardStyle || {};
+
+  const shadowStyle = isDark ? {
+    shadowColor: '#000',
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 6,
+  } : {
+    shadowColor: '#D5CFC5',
+    shadowOffset: { width: 6, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 6,
+  };
+
+  return (
+    <Animated.View
+      entering={FadeInDown.duration(500).delay(delay).springify().damping(18).stiffness(120)}
+      style={[{
+        backgroundColor: cardStyle.backgroundColor || theme.colors.surface,
+        borderRadius: 16,
+        padding: 16,
+      }, shadowStyle, style]}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
+export function FluidCard({ children, delay = 0, style }) {
+  const { theme } = useTheme();
+  const cardStyle = theme.cardStyle || {};
+  const breathe = useSharedValue(0);
+
+  React.useEffect(() => {
+    breathe.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 4000, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0, { duration: 4000, easing: Easing.inOut(Easing.sin) }),
+      ),
+      -1, false,
+    );
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    borderRadius: interpolate(breathe.value, [0, 1], [20, 28]),
+    transform: [{ scale: interpolate(breathe.value, [0, 1], [1, 1.005]) }],
+  }));
+
+  return (
+    <Animated.View
+      entering={FadeInDown.duration(500).delay(delay).springify().damping(18).stiffness(120)}
+      style={[{
+        backgroundColor: cardStyle.backgroundColor || theme.colors.surface,
+        borderWidth: 1,
+        borderColor: cardStyle.borderColor || theme.colors.border,
+        padding: 16,
+      }, animatedStyle, style]}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
+export function FadeInView({ children, delay = 0, style }) {
+  return (
+    <Animated.View entering={FadeIn.duration(500).delay(delay).springify().damping(18)} style={style}>
+      {children}
+    </Animated.View>
+  );
+}
 
 export function OrnamentalDivider({ color, style }) {
   const { theme } = useTheme();
@@ -25,11 +136,9 @@ export function OrnamentalDivider({ color, style }) {
 
 export function AnimatedCard({ children, delay = 0, style, onPress }) {
   const scale = useSharedValue(1);
-
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }));
-
   const handlePressIn = () => { scale.value = withSpring(0.97, { damping: 15, stiffness: 400 }); };
   const handlePressOut = () => { scale.value = withSpring(1, { damping: 15, stiffness: 400 }); };
 
@@ -99,8 +208,7 @@ export function BreathingGlow({ color, size = 200, style }) {
         withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.sin) }),
         withTiming(0, { duration: 2000, easing: Easing.inOut(Easing.sin) }),
       ),
-      -1,
-      false,
+      -1, false,
     );
   }, []);
 
@@ -146,8 +254,7 @@ export function PulseDot({ color, size = 8, style }) {
         withTiming(1, { duration: 1000, easing: Easing.inOut(Easing.sin) }),
         withTiming(0, { duration: 1000, easing: Easing.inOut(Easing.sin) }),
       ),
-      -1,
-      false,
+      -1, false,
     );
   }, []);
 

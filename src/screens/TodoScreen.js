@@ -15,6 +15,7 @@ import Animated, {
   SlideInDown, ZoomIn, BounceIn,
 } from 'react-native-reanimated';
 import { Swipeable } from 'react-native-gesture-handler';
+import VoiceCommandModal from '../components/VoiceCommandModal';
 
 const { width } = Dimensions.get('window');
 const serifFont = Platform.OS === 'ios' ? 'Georgia' : 'serif';
@@ -73,11 +74,12 @@ function AnimatedCheckbox({ checked, color }) {
   );
 }
 
-function TodoItem({ todo, onToggle, onDelete, onEdit, onToggleSubtask, index }) {
-  const { theme } = useTheme();
+function TodoItem({ todo, onToggle, onDelete, onEdit, onToggleSubtask, index, compact, isGrid }) {
+  const { theme, cardStyle } = useTheme();
   const pColor = getPriorityColor(todo.priority);
   const categoryInfo = CATEGORIES.find(c => c.value === todo.category);
   const scale = useSharedValue(1);
+  const padding = compact ? 10 : 14;
 
   const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -114,15 +116,15 @@ function TodoItem({ todo, onToggle, onDelete, onEdit, onToggleSubtask, index }) 
             onPress={handlePress}
             onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onEdit(todo); }}
             activeOpacity={1}
-            style={[styles.todoItem, { backgroundColor: theme.colors.surface, borderLeftColor: pColor }]}
+            style={[styles.todoItem, cardStyle, { borderWidth: 1, borderLeftColor: pColor, borderLeftWidth: 3, padding }, isGrid && styles.todoItemGrid]}
           >
             <AnimatedCheckbox checked={todo.completed} />
 
             <View style={styles.todoContent}>
               <View style={styles.todoTop}>
                 <Text
-                  style={[styles.todoTitle, { color: theme.colors.text }, todo.completed && { textDecorationLine: 'line-through', color: theme.colors.textMuted }]}
-                  numberOfLines={1}
+                  style={[styles.todoTitle, { color: theme.colors.text, fontSize: compact ? 13 : 15 }, todo.completed && { textDecorationLine: 'line-through', color: theme.colors.textMuted }]}
+                  numberOfLines={isGrid ? 2 : 1}
                 >
                   {todo.title}
                 </Text>
@@ -328,14 +330,17 @@ function FilterChip({ f, active, theme, onPress }) {
 }
 
 export default function TodoScreen() {
-  const { theme } = useTheme();
+  const { theme, layoutView, cardDensity, setLayoutView, setCardDensity } = useTheme();
   const { state, addTodo, updateTodo, deleteTodo, toggleTodo, addSubtask, toggleSubtask } = useApp();
   const [modalVisible, setModalVisible] = useState(false);
   const [editingTodo, setEditingTodo] = useState(null);
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('newest');
   const [searchQuery, setSearchQuery] = useState('');
+  const [voiceVisible, setVoiceVisible] = useState(false);
   const fabScale = useSharedValue(1);
+  const isCompact = cardDensity === 'compact';
+  const isGrid = layoutView === 'grid';
 
   const fabStyle = useAnimatedStyle(() => ({
     transform: [{ scale: fabScale.value }],
@@ -362,7 +367,21 @@ export default function TodoScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.colors.text }]}>Quests</Text>
-        <Text style={[styles.count, { color: theme.colors.textMuted }]}>{filteredTodos.length} of {state.todos.length}</Text>
+        <View style={styles.headerRight}>
+          <Text style={[styles.count, { color: theme.colors.textMuted }]}>{filteredTodos.length} of {state.todos.length}</Text>
+          <TouchableOpacity
+            onPress={() => setLayoutView(isGrid ? 'list' : 'grid')}
+            style={[styles.layoutToggle, { backgroundColor: theme.colors.surfaceLight }]}
+          >
+            <Ionicons name={isGrid ? 'list' : 'grid'} size={16} color={theme.colors.textMuted} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setCardDensity(isCompact ? 'comfortable' : 'compact')}
+            style={[styles.layoutToggle, { backgroundColor: theme.colors.surfaceLight }]}
+          >
+            <Ionicons name={isCompact ? 'expand' : 'contract'} size={16} color={theme.colors.textMuted} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <Animated.View entering={FadeIn.duration(400)} style={[styles.searchBar, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
@@ -378,21 +397,35 @@ export default function TodoScreen() {
         </ScrollView>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.listContent}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={isGrid ? styles.gridContent : styles.listContent}>
         {filteredTodos.length === 0 ? (
           <Animated.View entering={FadeIn.duration(500).delay(200)} style={styles.emptyState}>
             <Ionicons name="scroll-outline" size={40} color={theme.colors.textMuted} />
             <Text style={[styles.emptyTitle, { color: theme.colors.textSecondary }]}>No quests</Text>
             <Text style={[styles.emptySubtitle, { color: theme.colors.textMuted }]}>Tap + to begin</Text>
           </Animated.View>
+        ) : isGrid ? (
+          <View style={styles.gridRow}>
+            {filteredTodos.map((todo, i) => (
+              <View key={todo.id} style={styles.gridItem}>
+                <TodoItem todo={todo} index={i} onToggle={toggleTodo} onDelete={deleteTodo} onEdit={(t) => { setEditingTodo(t); setModalVisible(true); }} onToggleSubtask={toggleSubtask} compact={isCompact} isGrid />
+              </View>
+            ))}
+          </View>
         ) : (
           filteredTodos.map((todo, i) => (
-            <TodoItem key={todo.id} todo={todo} index={i} onToggle={toggleTodo} onDelete={deleteTodo} onEdit={(t) => { setEditingTodo(t); setModalVisible(true); }} onToggleSubtask={toggleSubtask} />
+            <TodoItem key={todo.id} todo={todo} index={i} onToggle={toggleTodo} onDelete={deleteTodo} onEdit={(t) => { setEditingTodo(t); setModalVisible(true); }} onToggleSubtask={toggleSubtask} compact={isCompact} />
           ))
         )}
       </ScrollView>
 
       <Animated.View entering={ZoomIn.duration(400).delay(200).springify().damping(10)} style={[styles.fabWrap, fabStyle]}>
+        <TouchableOpacity
+          style={[styles.voiceFab, { backgroundColor: theme.colors.surface }]}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setVoiceVisible(true); }}
+        >
+          <Ionicons name="mic" size={18} color={theme.colors.primary} />
+        </TouchableOpacity>
         <TouchableOpacity
           style={[styles.fab, { backgroundColor: theme.colors.primary }]}
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setEditingTodo(null); setModalVisible(true); }}
@@ -405,6 +438,7 @@ export default function TodoScreen() {
       </Animated.View>
 
       <AddTodoModal visible={modalVisible} onClose={() => { setModalVisible(false); setEditingTodo(null); }} onSave={(d) => { d.id ? updateTodo(d) : addTodo(d); setEditingTodo(null); }} initialData={editingTodo} />
+      <VoiceCommandModal visible={voiceVisible} onClose={() => setVoiceVisible(false)} />
     </View>
   );
 }
@@ -412,11 +446,13 @@ export default function TodoScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline',
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 24, paddingTop: 60, paddingBottom: 8,
   },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   title: { fontSize: 28, fontWeight: '700', fontFamily: serifFont },
   count: { fontSize: 13 },
+  layoutToggle: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
 
   searchBar: {
     flexDirection: 'row', alignItems: 'center',
@@ -433,10 +469,16 @@ const styles = StyleSheet.create({
   filterChipText: { fontSize: 12, fontWeight: '600' },
 
   listContent: { paddingHorizontal: 24, paddingBottom: 100 },
+  gridContent: { paddingHorizontal: 16, paddingBottom: 100 },
+  gridRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  gridItem: { width: (width - 48) / 2 },
 
   todoItem: {
     flexDirection: 'row', alignItems: 'center',
-    borderRadius: 10, padding: 14, borderLeftWidth: 3,
+    borderRadius: 12, marginBottom: 8,
+  },
+  todoItemGrid: {
+    flexDirection: 'column', alignItems: 'flex-start',
   },
   checkbox: {
     width: 22, height: 22, borderRadius: 11, borderWidth: 1.5,
@@ -466,7 +508,12 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 16, fontWeight: '600', marginTop: 12, marginBottom: 4 },
   emptySubtitle: { fontSize: 13 },
 
-  fabWrap: { position: 'absolute', bottom: 30, right: 24 },
+  fabWrap: { position: 'absolute', bottom: 30, right: 24, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  voiceFab: {
+    width: 44, height: 44, borderRadius: 22,
+    justifyContent: 'center', alignItems: 'center',
+    elevation: 4, shadowOpacity: 0.3, shadowRadius: 8, shadowColor: '#000',
+  },
   fab: {
     width: 52, height: 52, borderRadius: 26,
     justifyContent: 'center', alignItems: 'center',

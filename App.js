@@ -25,6 +25,12 @@ import AchievementsScreen from './src/screens/AchievementsScreen';
 import PomodoroScreen from './src/screens/PomodoroScreen';
 import NotesScreen from './src/screens/NotesScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import ShopScreen from './src/screens/ShopScreen';
+import KanbanScreen from './src/screens/KanbanScreen';
+import ChallengesScreen from './src/screens/ChallengesScreen';
+import HeatmapScreen from './src/screens/HeatmapScreen';
+import TimeTrackingScreen from './src/screens/TimeTrackingScreen';
+import GuildScreen from './src/screens/GuildScreen';
 import GlobalSearch from './src/components/GlobalSearch';
 
 const Stack = createNativeStackNavigator();
@@ -178,6 +184,12 @@ function AppContent() {
         <Stack.Screen name="Notes" component={NotesScreen} />
         <Stack.Screen name="Countdowns" component={CountdownScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
+        <Stack.Screen name="Shop" component={ShopScreen} />
+        <Stack.Screen name="Kanban" component={KanbanScreen} />
+        <Stack.Screen name="Challenges" component={ChallengesScreen} />
+        <Stack.Screen name="Heatmap" component={HeatmapScreen} />
+        <Stack.Screen name="TimeTracking" component={TimeTrackingScreen} />
+        <Stack.Screen name="Guild" component={GuildScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

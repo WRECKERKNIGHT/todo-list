@@ -7,8 +7,10 @@ const AppContext = createContext();
 const XP_PER_TASK = 25;
 const XP_PER_HABIT = 15;
 const XP_PER_POMODORO = 10;
+const XP_PER_CHALLENGE = 50;
 const COINS_PER_TASK = 5;
 const COINS_PER_HABIT = 3;
+const COINS_PER_CHALLENGE = 20;
 const PUNISHMENT_FINE = 10;
 
 const LEVELS = [
@@ -22,6 +24,31 @@ const LEVELS = [
   { level: 8, xp: 3000, title: 'Duke' },
   { level: 9, xp: 4000, title: 'Archduke' },
   { level: 10, xp: 5500, title: 'King' },
+];
+
+const SHOP_ITEMS = [
+  { id: 'theme_royal_purple', name: 'Royal Purple', desc: 'Deep purple accent color', type: 'theme', price: 100, color: '#9B59B6' },
+  { id: 'theme_forest_green', name: 'Forest Emerald', desc: 'Rich green accent color', type: 'theme', price: 100, color: '#27AE60' },
+  { id: 'theme_ocean_blue', name: 'Ocean Sapphire', desc: 'Deep blue accent color', type: 'theme', price: 100, color: '#2980B9' },
+  { id: 'theme_crimson', name: 'Crimson Blaze', desc: 'Fiery red accent color', type: 'theme', price: 120, color: '#E74C3C' },
+  { id: 'theme_golden', name: 'Golden Hour', desc: 'Warm golden accent', type: 'theme', price: 150, color: '#F39C12' },
+  { id: 'title_champion', name: 'Champion', desc: 'Title: Champion of the Realm', type: 'title', price: 200, value: 'Champion of the Realm' },
+  { id: 'title_sage', name: 'Wise Sage', desc: 'Title: The Wise Sage', type: 'title', price: 200, value: 'The Wise Sage' },
+  { id: 'title_legend', name: 'Living Legend', desc: 'Title: Living Legend', type: 'title', price: 300, value: 'Living Legend' },
+  { id: 'shield_dragon', name: 'Dragon Shield', desc: 'Epic dragon crest icon', type: 'shield', price: 250, icon: 'flame' },
+  { id: 'shield_lion', name: 'Lion Crest', desc: 'Noble lion emblem', type: 'shield', price: 250, icon: 'paw' },
+  { id: 'shield_phoenix', name: 'Phoenix Badge', desc: 'Rising phoenix icon', type: 'shield', price: 300, icon: 'rocket' },
+  { id: 'boost_2x', name: '2x XP Boost', desc: 'Double XP for 24 hours', type: 'boost', price: 150, duration: 86400000 },
+  { id: 'protection', name: 'Punishment Shield', desc: 'Block next punishment', type: 'protection', price: 200 },
+  { id: 'extra_reminder', name: 'Extra Reminder', desc: 'Add second reminder to any task', type: 'feature', price: 100 },
+];
+
+const DEFAULT_TAGS = [
+  { id: 'tag_urgent', name: 'Urgent', color: '#E74C3C' },
+  { id: 'tag_important', name: 'Important', color: '#F39C12' },
+  { id: 'tag_quick', name: 'Quick Win', color: '#27AE60' },
+  { id: 'tag_deep', name: 'Deep Work', color: '#8E44AD' },
+  { id: 'tag_errand', name: 'Errand', color: '#3498DB' },
 ];
 
 const ACHIEVEMENTS = [
@@ -41,6 +68,12 @@ const ACHIEVEMENTS = [
   { id: 'night_owl', title: 'Night Owl', desc: 'Complete a task after 11 PM', icon: 'moon', unlocked: false },
   { id: 'rich', title: 'Royal Treasury', desc: 'Accumulate 500 coins', icon: 'cash', unlocked: false },
   { id: 'no_punishment', title: 'Untouchable', desc: 'Go 7 days without punishment', icon: 'heart', unlocked: false },
+  { id: 'first_challenge', title: 'Challenger', desc: 'Complete your first daily challenge', icon: 'trophy', unlocked: false },
+  { id: 'five_challenges', title: 'Challenge Veteran', desc: 'Complete 5 daily challenges', icon: 'ribbon', unlocked: false },
+  { id: 'shop_first', title: 'First Purchase', desc: 'Buy your first shop item', icon: 'cart', unlocked: false },
+  { id: 'time_10h', title: 'Time Lord', desc: 'Track 10 hours of work', icon: 'hourglass', unlocked: false },
+  { id: 'kanban_user', title: 'Board Master', desc: 'Move 10 tasks through Kanban columns', icon: 'grid', unlocked: false },
+  { id: 'tagger', title: 'Tag Master', desc: 'Apply tags to 20 tasks', icon: 'pricetag', unlocked: false },
 ];
 
 const initialState = {
@@ -58,6 +91,23 @@ const initialState = {
   streakDays: 0,
   lastActiveDate: null,
   isLoading: true,
+  tags: DEFAULT_TAGS,
+  dailyChallenge: null,
+  challengesCompleted: [],
+  challengeStreak: 0,
+  timeEntries: [],
+  activeTimeEntry: null,
+  shopItems: SHOP_ITEMS,
+  unlockedShopItems: [],
+  activeThemeAccent: null,
+  activeTitle: null,
+  activeShield: null,
+  xpBoostEnd: null,
+  hasProtection: false,
+  kanbanMoved: 0,
+  tagsApplied: 0,
+  viewMode: 'list',
+  moodEntries: [],
 };
 
 function getLevel(xp) {
@@ -69,6 +119,36 @@ function getLevel(xp) {
   const nextLevel = LEVELS.find(l => l.xp > current.xp);
   const progress = nextLevel ? (xp - current.xp) / (nextLevel.xp - current.xp) : 1;
   return { ...current, progress, nextXp: nextLevel ? nextLevel.xp : null };
+}
+
+function generateDailyChallenge(todos, habits) {
+  const today = new Date().toISOString().split('T')[0];
+  const seed = today.split('-').reduce((a, b) => a + parseInt(b), 0);
+  const challenges = [
+    { id: 'complete_3', title: 'Complete 3 Quests', desc: 'Finish any 3 tasks today', target: 3, type: 'tasks', reward: { xp: 50, coins: 20 } },
+    { id: 'complete_5', title: 'Quest Marathon', desc: 'Complete 5 tasks in one day', target: 5, type: 'tasks', reward: { xp: 100, coins: 40 } },
+    { id: 'habit_all', title: 'Ritual Master', desc: 'Complete all your rituals today', target: -1, type: 'habits', reward: { xp: 75, coins: 30 } },
+    { id: 'focus_2', title: 'Deep Focus', desc: 'Complete 2 pomodoro sessions', target: 2, type: 'pomodoros', reward: { xp: 40, coins: 15 } },
+    { id: 'early_start', title: 'Dawn Raider', desc: 'Complete a task before 10 AM', target: 1, type: 'early', reward: { xp: 30, coins: 10 } },
+    { id: 'journal', title: 'Chronicler', desc: 'Write a journal entry today', target: 1, type: 'notes', reward: { xp: 25, coins: 10 } },
+    { id: 'high_priority', title: 'Critical Mission', desc: 'Complete a high priority task', target: 1, type: 'high_priority', reward: { xp: 60, coins: 25 } },
+  ];
+  return { ...challenges[seed % challenges.length], date: today, progress: 0, completed: false };
+}
+
+function getTodayActivity(todos, habits, notes) {
+  const today = new Date().toISOString().split('T')[0];
+  let count = 0;
+  todos.forEach(t => {
+    if (t.completedAt && new Date(t.completedAt).toISOString().split('T')[0] === today) count++;
+  });
+  habits.forEach(h => {
+    if (h.completedDates.includes(today)) count++;
+  });
+  notes.forEach(n => {
+    if (new Date(n.createdAt).toISOString().split('T')[0] === today) count++;
+  });
+  return count;
 }
 
 function appReducer(state, action) {
@@ -92,161 +172,174 @@ function appReducer(state, action) {
         punishmentReasons: action.payload.punishmentReasons || [],
         streakDays: action.payload.streakDays || 0,
         lastActiveDate: action.payload.lastActiveDate || null,
+        tags: action.payload.tags || DEFAULT_TAGS,
+        dailyChallenge: action.payload.dailyChallenge || null,
+        challengesCompleted: action.payload.challengesCompleted || [],
+        challengeStreak: action.payload.challengeStreak || 0,
+        timeEntries: action.payload.timeEntries || [],
+        activeTimeEntry: action.payload.activeTimeEntry || null,
+        unlockedShopItems: action.payload.unlockedShopItems || [],
+        activeThemeAccent: action.payload.activeThemeAccent || null,
+        activeTitle: action.payload.activeTitle || null,
+        activeShield: action.payload.activeShield || null,
+        xpBoostEnd: action.payload.xpBoostEnd || null,
+        hasProtection: action.payload.hasProtection || false,
+        kanbanMoved: action.payload.kanbanMoved || 0,
+        tagsApplied: action.payload.tagsApplied || 0,
+        viewMode: action.payload.viewMode || 'list',
+        moodEntries: action.payload.moodEntries || [],
         isLoading: false,
       };
 
+    // --- Todo ---
     case 'ADD_TODO':
       return { ...state, todos: [action.payload, ...state.todos] };
-
     case 'UPDATE_TODO':
-      return {
-        ...state,
-        todos: state.todos.map(t => t.id === action.payload.id ? { ...t, ...action.payload } : t),
-      };
-
+      return { ...state, todos: state.todos.map(t => t.id === action.payload.id ? { ...t, ...action.payload } : t) };
     case 'DELETE_TODO':
       return { ...state, todos: state.todos.filter(t => t.id !== action.payload) };
-
     case 'TOGGLE_TODO':
       return {
         ...state,
         todos: state.todos.map(t =>
-          t.id === action.payload ? {
-            ...t,
-            completed: !t.completed,
-            completedAt: !t.completed ? new Date().toISOString() : null,
-          } : t
+          t.id === action.payload ? { ...t, completed: !t.completed, completedAt: !t.completed ? new Date().toISOString() : null, status: !t.completed ? 'done' : (t.status || 'todo') } : t
         ),
       };
+    case 'SET_TODO_STATUS':
+      return {
+        ...state,
+        todos: state.todos.map(t =>
+          t.id === action.payload.id ? { ...t, status: action.payload.status, completed: action.payload.status === 'done', completedAt: action.payload.status === 'done' ? (t.completedAt || new Date().toISOString()) : null } : t
+        ),
+        kanbanMoved: state.kanbanMoved + 1,
+      };
 
+    // --- Subtasks ---
     case 'ADD_SUBTASK':
-      return {
-        ...state,
-        todos: state.todos.map(t =>
-          t.id === action.payload.todoId
-            ? { ...t, subtasks: [...(t.subtasks || []), action.payload.subtask] }
-            : t
-        ),
-      };
-
+      return { ...state, todos: state.todos.map(t => t.id === action.payload.todoId ? { ...t, subtasks: [...(t.subtasks || []), action.payload.subtask] } : t) };
     case 'TOGGLE_SUBTASK':
-      return {
-        ...state,
-        todos: state.todos.map(t => {
-          if (t.id === action.payload.todoId) {
-            return {
-              ...t,
-              subtasks: (t.subtasks || []).map(s =>
-                s.id === action.payload.subtaskId ? { ...s, completed: !s.completed } : s
-              ),
-            };
-          }
-          return t;
-        }),
-      };
-
+      return { ...state, todos: state.todos.map(t => { if (t.id === action.payload.todoId) { return { ...t, subtasks: (t.subtasks || []).map(s => s.id === action.payload.subtaskId ? { ...s, completed: !s.completed } : s) }; } return t; }) };
     case 'DELETE_SUBTASK':
-      return {
-        ...state,
-        todos: state.todos.map(t =>
-          t.id === action.payload.todoId
-            ? { ...t, subtasks: (t.subtasks || []).filter(s => s.id !== action.payload.subtaskId) }
-            : t
-        ),
-      };
+      return { ...state, todos: state.todos.map(t => t.id === action.payload.todoId ? { ...t, subtasks: (t.subtasks || []).filter(s => s.id !== action.payload.subtaskId) } : t) };
 
+    // --- Habits ---
     case 'ADD_HABIT':
       return { ...state, habits: [action.payload, ...state.habits] };
-
     case 'TOGGLE_HABIT_DATE': {
-      return {
-        ...state,
-        habits: state.habits.map(h => {
-          if (h.id === action.payload.habitId) {
-            const dateStr = action.payload.dateStr;
-            const exists = h.completedDates.includes(dateStr);
-            return {
-              ...h,
-              completedDates: exists
-                ? h.completedDates.filter(d => d !== dateStr)
-                : [...h.completedDates, dateStr],
-            };
-          }
-          return h;
-        }),
-      };
+      return { ...state, habits: state.habits.map(h => { if (h.id === action.payload.habitId) { const dateStr = action.payload.dateStr; const exists = h.completedDates.includes(dateStr); return { ...h, completedDates: exists ? h.completedDates.filter(d => d !== dateStr) : [...h.completedDates, dateStr] }; } return h; }) };
     }
-
     case 'DELETE_HABIT':
       return { ...state, habits: state.habits.filter(h => h.id !== action.payload) };
-
     case 'UPDATE_HABIT':
-      return {
-        ...state,
-        habits: state.habits.map(h => h.id === action.payload.id ? { ...h, ...action.payload } : h),
-      };
+      return { ...state, habits: state.habits.map(h => h.id === action.payload.id ? { ...h, ...action.payload } : h) };
 
+    // --- Countdowns ---
     case 'ADD_COUNTDOWN':
       return { ...state, countdowns: [action.payload, ...state.countdowns] };
-
     case 'UPDATE_COUNTDOWN':
-      return {
-        ...state,
-        countdowns: state.countdowns.map(c => c.id === action.payload.id ? { ...c, ...action.payload } : c),
-      };
-
+      return { ...state, countdowns: state.countdowns.map(c => c.id === action.payload.id ? { ...c, ...action.payload } : c) };
     case 'DELETE_COUNTDOWN':
       return { ...state, countdowns: state.countdowns.filter(c => c.id !== action.payload) };
 
+    // --- Notes ---
     case 'ADD_NOTE':
       return { ...state, notes: [action.payload, ...state.notes] };
-
     case 'UPDATE_NOTE':
-      return {
-        ...state,
-        notes: state.notes.map(n => n.id === action.payload.id ? { ...n, ...action.payload } : n),
-      };
-
+      return { ...state, notes: state.notes.map(n => n.id === action.payload.id ? { ...n, ...action.payload } : n) };
     case 'DELETE_NOTE':
       return { ...state, notes: state.notes.filter(n => n.id !== action.payload) };
 
+    // --- Tags ---
+    case 'ADD_TAG':
+      return { ...state, tags: [...state.tags, action.payload] };
+    case 'DELETE_TAG':
+      return { ...state, tags: state.tags.filter(t => t.id !== action.payload), todos: state.todos.map(t => ({ ...t, tagIds: (t.tagIds || []).filter(id => id !== action.payload) })) };
+    case 'ASSIGN_TAG':
+      return { ...state, todos: state.todos.map(t => t.id === action.payload.todoId ? { ...t, tagIds: [...new Set([...(t.tagIds || []), action.payload.tagId])] } : t), tagsApplied: state.tagsApplied + 1 };
+    case 'REMOVE_TAG_FROM_TASK':
+      return { ...state, todos: state.todos.map(t => t.id === action.payload.todoId ? { ...t, tagIds: (t.tagIds || []).filter(id => id !== action.payload.tagId) } : t) };
+
+    // --- XP / Coins ---
     case 'ADD_XP':
       return { ...state, xp: state.xp + action.payload };
-
     case 'ADD_COINS':
       return { ...state, coins: state.coins + action.payload };
-
     case 'SPEND_COINS':
       return { ...state, coins: Math.max(0, state.coins - action.payload) };
 
+    // --- Achievements ---
     case 'UNLOCK_ACHIEVEMENT':
-      return {
-        ...state,
-        achievements: state.achievements.map(a =>
-          a.id === action.payload ? { ...a, unlocked: true, unlockedAt: new Date().toISOString() } : a
-        ),
-      };
+      return { ...state, achievements: state.achievements.map(a => a.id === action.payload ? { ...a, unlocked: true, unlockedAt: new Date().toISOString() } : a) };
 
+    // --- Punishment ---
     case 'TOGGLE_PUNISHMENT':
       return { ...state, punishmentEnabled: !state.punishmentEnabled };
-
     case 'APPLY_PUNISHMENT':
-      return {
-        ...state,
-        punishmentCount: state.punishmentCount + 1,
-        coins: Math.max(0, state.coins - PUNISHMENT_FINE),
-        punishmentReasons: [...state.punishmentReasons, {
-          reason: action.payload.reason,
-          date: new Date().toISOString(),
-          coinsLost: PUNISHMENT_FINE,
-        }],
-      };
+      if (state.hasProtection) return { ...state, hasProtection: false, punishmentReasons: [...state.punishmentReasons, { reason: action.payload.reason + ' (shielded)', date: new Date().toISOString(), coinsLost: 0 }] };
+      return { ...state, punishmentCount: state.punishmentCount + 1, coins: Math.max(0, state.coins - PUNISHMENT_FINE), punishmentReasons: [...state.punishmentReasons, { reason: action.payload.reason, date: new Date().toISOString(), coinsLost: PUNISHMENT_FINE }] };
 
+    // --- Streak ---
     case 'UPDATE_STREAK':
       return { ...state, streakDays: action.payload.streakDays, lastActiveDate: action.payload.lastActiveDate };
 
+    // --- Pomodoro ---
     case 'INCREMENT_POMODORO':
       return { ...state, pomodoroSessions: state.pomodoroSessions + 1 };
+
+    // --- Daily Challenge ---
+    case 'SET_DAILY_CHALLENGE':
+      return { ...state, dailyChallenge: action.payload };
+    case 'UPDATE_CHALLENGE_PROGRESS':
+      return { ...state, dailyChallenge: state.dailyChallenge ? { ...state.dailyChallenge, progress: action.payload } : null };
+    case 'COMPLETE_DAILY_CHALLENGE':
+      return {
+        ...state,
+        dailyChallenge: state.dailyChallenge ? { ...state.dailyChallenge, completed: true } : null,
+        challengesCompleted: [...state.challengesCompleted, { id: state.dailyChallenge?.id, date: new Date().toISOString().split('T')[0] }],
+        challengeStreak: state.challengeStreak + 1,
+      };
+
+    // --- Time Tracking ---
+    case 'START_TIME_ENTRY':
+      return { ...state, activeTimeEntry: action.payload };
+    case 'STOP_TIME_ENTRY':
+      return {
+        ...state,
+        activeTimeEntry: null,
+        timeEntries: [...state.timeEntries, action.payload],
+      };
+    case 'CLEAR_TIME_ENTRY':
+      return { ...state, activeTimeEntry: null };
+
+    // --- Shop ---
+    case 'PURCHASE_SHOP_ITEM': {
+      const item = SHOP_ITEMS.find(i => i.id === action.payload);
+      if (!item || state.coins < item.price) return state;
+      const newState = { ...state, coins: state.coins - item.price, unlockedShopItems: [...state.unlockedShopItems, action.payload] };
+      if (item.type === 'theme') newState.activeThemeAccent = item.color;
+      if (item.type === 'title') newState.activeTitle = item.value;
+      if (item.type === 'shield') newState.activeShield = item.icon;
+      if (item.type === 'boost') newState.xpBoostEnd = Date.now() + item.duration;
+      if (item.type === 'protection') newState.hasProtection = true;
+      return newState;
+    }
+
+    // --- View Mode ---
+    case 'SET_VIEW_MODE':
+      return { ...state, viewMode: action.payload };
+
+    // --- Mood ---
+    case 'ADD_MOOD_ENTRY': {
+      const { date, mood, energy } = action.payload;
+      const existing = state.moodEntries.findIndex(e => e.date === date);
+      const entries = [...state.moodEntries];
+      if (existing >= 0) {
+        entries[existing] = { ...entries[existing], mood, energy };
+      } else {
+        entries.push({ date, mood, energy });
+      }
+      return { ...state, moodEntries: entries };
+    }
 
     default:
       return state;
@@ -256,111 +349,111 @@ function appReducer(state, action) {
 export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(appReducer, initialState);
 
-  useEffect(() => {
-    loadInitialData();
-  }, []);
+  useEffect(() => { loadInitialData(); }, []);
 
   useEffect(() => {
     if (!state.isLoading) {
       const data = {
-        todos: state.todos,
-        habits: state.habits,
-        countdowns: state.countdowns,
-        notes: state.notes,
-        pomodoroSessions: state.pomodoroSessions,
-        xp: state.xp,
-        coins: state.coins,
-        achievements: state.achievements,
-        punishmentEnabled: state.punishmentEnabled,
-        punishmentCount: state.punishmentCount,
-        punishmentReasons: state.punishmentReasons,
-        streakDays: state.streakDays,
-        lastActiveDate: state.lastActiveDate,
+        todos: state.todos, habits: state.habits, countdowns: state.countdowns, notes: state.notes,
+        pomodoroSessions: state.pomodoroSessions, xp: state.xp, coins: state.coins,
+        achievements: state.achievements, punishmentEnabled: state.punishmentEnabled,
+        punishmentCount: state.punishmentCount, punishmentReasons: state.punishmentReasons,
+        streakDays: state.streakDays, lastActiveDate: state.lastActiveDate,
+        tags: state.tags, dailyChallenge: state.dailyChallenge,
+        challengesCompleted: state.challengesCompleted, challengeStreak: state.challengeStreak,
+        timeEntries: state.timeEntries, activeTimeEntry: state.activeTimeEntry,
+        unlockedShopItems: state.unlockedShopItems, activeThemeAccent: state.activeThemeAccent,
+        activeTitle: state.activeTitle, activeShield: state.activeShield,
+        xpBoostEnd: state.xpBoostEnd, hasProtection: state.hasProtection,
+        kanbanMoved: state.kanbanMoved, tagsApplied: state.tagsApplied,
+        viewMode: state.viewMode,
       };
       saveData(KEYS.APP_DATA, data);
     }
-  }, [state.todos, state.habits, state.countdowns, state.notes, state.isLoading]);
+  }, [state.todos, state.habits, state.countdowns, state.notes, state.isLoading, state.xp, state.coins, state.tags, state.dailyChallenge, state.timeEntries, state.unlockedShopItems, state.activeThemeAccent, state.activeTitle, state.activeShield, state.viewMode]);
 
   useEffect(() => {
     state.todos.forEach(todo => {
-      if (todo.reminderTime && !todo.completed) {
-        scheduleTodoReminder(todo);
-      }
+      if (todo.reminderTime && !todo.completed) scheduleTodoReminder(todo);
     });
     state.habits.forEach(habit => {
-      if (habit.reminderTime) {
-        scheduleHabitReminder(habit);
-      }
+      if (habit.reminderTime) scheduleHabitReminder(habit);
     });
   }, [state.todos, state.habits]);
+
+  useEffect(() => {
+    if (!state.isLoading && !state.dailyChallenge) {
+      const today = new Date().toISOString().split('T')[0];
+      const alreadyDone = state.challengesCompleted.some(c => c.date === today);
+      if (!alreadyDone) {
+        dispatch({ type: 'SET_DAILY_CHALLENGE', payload: generateDailyChallenge(state.todos, state.habits) });
+      }
+    }
+  }, [state.isLoading]);
 
   const loadInitialData = async () => {
     try {
       const data = await loadData(KEYS.APP_DATA);
-      if (data) {
-        dispatch({ type: 'LOAD_DATA', payload: data });
-      } else {
-        dispatch({ type: 'LOAD_DATA', payload: {} });
-      }
+      if (data) dispatch({ type: 'LOAD_DATA', payload: data });
+      else dispatch({ type: 'LOAD_DATA', payload: {} });
     } catch (e) {
       console.error('Failed to load data:', e);
       dispatch({ type: 'LOAD_DATA', payload: {} });
     }
   };
 
+  const getEffectiveXp = useCallback((amount) => {
+    if (state.xpBoostEnd && Date.now() < state.xpBoostEnd) return amount * 2;
+    return amount;
+  }, [state.xpBoostEnd]);
+
+  // --- Todo actions ---
   const addTodo = useCallback((todo) => {
-    const newTodo = {
-      ...todo,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-      completed: false,
-      subtasks: todo.subtasks || [],
-      recurring: todo.recurring || null,
-    };
+    const newTodo = { ...todo, id: Date.now().toString(), createdAt: new Date().toISOString(), completed: false, subtasks: todo.subtasks || [], recurring: todo.recurring || null, tagIds: todo.tagIds || [], status: 'todo', timeSpent: 0 };
     dispatch({ type: 'ADD_TODO', payload: newTodo });
     if (newTodo.reminderTime) scheduleTodoReminder(newTodo);
     return newTodo;
   }, []);
 
-  const updateTodo = useCallback((todo) => {
-    dispatch({ type: 'UPDATE_TODO', payload: todo });
-  }, []);
-
-  const deleteTodo = useCallback((id) => {
-    dispatch({ type: 'DELETE_TODO', payload: id });
-    cancelNotification(id);
-  }, []);
+  const updateTodo = useCallback((todo) => dispatch({ type: 'UPDATE_TODO', payload: todo }), []);
+  const deleteTodo = useCallback((id) => { dispatch({ type: 'DELETE_TODO', payload: id }); cancelNotification(id); }, []);
 
   const toggleTodo = useCallback((id) => {
     const todo = state.todos.find(t => t.id === id);
     if (todo && !todo.completed) {
-      dispatch({ type: 'ADD_XP', payload: XP_PER_TASK });
+      const xpGain = getEffectiveXp(XP_PER_TASK);
+      dispatch({ type: 'ADD_XP', payload: xpGain });
       dispatch({ type: 'ADD_COINS', payload: COINS_PER_TASK });
-      checkAchievements(state.xp + XP_PER_TASK, state);
+      checkAchievements(state.xp + xpGain, { ...state, coins: state.coins + COINS_PER_TASK });
     }
     dispatch({ type: 'TOGGLE_TODO', payload: id });
-  }, [state.todos, state.xp, state]);
+  }, [state.todos, state.xp, state.coins, getEffectiveXp]);
+
+  const setTodoStatus = useCallback((id, status) => {
+    const todo = state.todos.find(t => t.id === id);
+    if (todo && !todo.completed && status === 'done') {
+      const xpGain = getEffectiveXp(XP_PER_TASK);
+      dispatch({ type: 'ADD_XP', payload: xpGain });
+      dispatch({ type: 'ADD_COINS', payload: COINS_PER_TASK });
+    }
+    dispatch({ type: 'SET_TODO_STATUS', payload: { id, status } });
+  }, [state.todos, state.xp, state.coins, getEffectiveXp]);
 
   const addSubtask = useCallback((todoId, subtask) => {
-    const newSubtask = { id: Date.now().toString(), title: subtask.title, completed: false };
-    dispatch({ type: 'ADD_SUBTASK', payload: { todoId, subtask: newSubtask } });
+    dispatch({ type: 'ADD_SUBTASK', payload: { todoId, subtask: { id: Date.now().toString(), title: subtask.title, completed: false } } });
   }, []);
+  const toggleSubtask = useCallback((todoId, subtaskId) => dispatch({ type: 'TOGGLE_SUBTASK', payload: { todoId, subtaskId } }), []);
+  const deleteSubtask = useCallback((todoId, subtaskId) => dispatch({ type: 'DELETE_SUBTASK', payload: { todoId, subtaskId } }), []);
 
-  const toggleSubtask = useCallback((todoId, subtaskId) => {
-    dispatch({ type: 'TOGGLE_SUBTASK', payload: { todoId, subtaskId } });
-  }, []);
+  // --- Tag actions ---
+  const addTag = useCallback((tag) => dispatch({ type: 'ADD_TAG', payload: { ...tag, id: 'tag_' + Date.now().toString() } }), []);
+  const deleteTag = useCallback((id) => dispatch({ type: 'DELETE_TAG', payload: id }), []);
+  const assignTag = useCallback((todoId, tagId) => dispatch({ type: 'ASSIGN_TAG', payload: { todoId, tagId } }), []);
+  const removeTagFromTask = useCallback((todoId, tagId) => dispatch({ type: 'REMOVE_TAG_FROM_TASK', payload: { todoId, tagId } }), []);
 
-  const deleteSubtask = useCallback((todoId, subtaskId) => {
-    dispatch({ type: 'DELETE_SUBTASK', payload: { todoId, subtaskId } });
-  }, []);
-
+  // --- Habit actions ---
   const addHabit = useCallback((habit) => {
-    const newHabit = {
-      ...habit,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-      completedDates: [],
-    };
+    const newHabit = { ...habit, id: Date.now().toString(), createdAt: new Date().toISOString(), completedDates: [] };
     dispatch({ type: 'ADD_HABIT', payload: newHabit });
     if (newHabit.reminderTime) scheduleHabitReminder(newHabit);
     return newHabit;
@@ -369,63 +462,89 @@ export function AppProvider({ children }) {
   const toggleHabitDate = useCallback((habitId, dateStr) => {
     const habit = state.habits.find(h => h.id === habitId);
     if (habit && !habit.completedDates.includes(dateStr)) {
-      dispatch({ type: 'ADD_XP', payload: XP_PER_HABIT });
+      const xpGain = getEffectiveXp(XP_PER_HABIT);
+      dispatch({ type: 'ADD_XP', payload: xpGain });
       dispatch({ type: 'ADD_COINS', payload: COINS_PER_HABIT });
     }
     dispatch({ type: 'TOGGLE_HABIT_DATE', payload: { habitId, dateStr } });
-  }, [state.habits, state.xp]);
+  }, [state.habits, state.xp, getEffectiveXp]);
 
-  const deleteHabit = useCallback((id) => {
-    dispatch({ type: 'DELETE_HABIT', payload: id });
-    cancelNotification(id);
-  }, []);
+  const deleteHabit = useCallback((id) => { dispatch({ type: 'DELETE_HABIT', payload: id }); cancelNotification(id); }, []);
+  const updateHabit = useCallback((habit) => dispatch({ type: 'UPDATE_HABIT', payload: habit }), []);
 
-  const updateHabit = useCallback((habit) => {
-    dispatch({ type: 'UPDATE_HABIT', payload: habit });
-  }, []);
-
+  // --- Countdown actions ---
   const addCountdown = useCallback((countdown) => {
     const newCountdown = { ...countdown, id: Date.now().toString(), createdAt: new Date().toISOString() };
     dispatch({ type: 'ADD_COUNTDOWN', payload: newCountdown });
     return newCountdown;
   }, []);
+  const updateCountdown = useCallback((countdown) => dispatch({ type: 'UPDATE_COUNTDOWN', payload: countdown }), []);
+  const deleteCountdown = useCallback((id) => dispatch({ type: 'DELETE_COUNTDOWN', payload: id }), []);
 
-  const updateCountdown = useCallback((countdown) => {
-    dispatch({ type: 'UPDATE_COUNTDOWN', payload: countdown });
-  }, []);
-
-  const deleteCountdown = useCallback((id) => {
-    dispatch({ type: 'DELETE_COUNTDOWN', payload: id });
-  }, []);
-
+  // --- Note actions ---
   const addNote = useCallback((note) => {
     const newNote = { ...note, id: Date.now().toString(), createdAt: new Date().toISOString() };
     dispatch({ type: 'ADD_NOTE', payload: newNote });
     return newNote;
   }, []);
+  const updateNote = useCallback((note) => dispatch({ type: 'UPDATE_NOTE', payload: note }), []);
+  const deleteNote = useCallback((id) => dispatch({ type: 'DELETE_NOTE', payload: id }), []);
 
-  const updateNote = useCallback((note) => {
-    dispatch({ type: 'UPDATE_NOTE', payload: note });
-  }, []);
-
-  const deleteNote = useCallback((id) => {
-    dispatch({ type: 'DELETE_NOTE', payload: id });
-  }, []);
-
+  // --- Pomodoro ---
   const completePomodoro = useCallback(() => {
     dispatch({ type: 'INCREMENT_POMODORO' });
-    dispatch({ type: 'ADD_XP', payload: XP_PER_POMODORO });
-    checkAchievements(state.xp + XP_PER_POMODORO, state);
-  }, [state.xp, state]);
+    const xpGain = getEffectiveXp(XP_PER_POMODORO);
+    dispatch({ type: 'ADD_XP', payload: xpGain });
+    checkAchievements(state.xp + xpGain, state);
+  }, [state.xp, state, getEffectiveXp]);
 
-  const applyPunishment = useCallback((reason) => {
-    dispatch({ type: 'APPLY_PUNISHMENT', payload: { reason } });
+  // --- Punishment ---
+  const applyPunishment = useCallback((reason) => dispatch({ type: 'APPLY_PUNISHMENT', payload: { reason } }), []);
+  const togglePunishment = useCallback(() => dispatch({ type: 'TOGGLE_PUNISHMENT' }), []);
+
+  // --- Daily Challenge ---
+  const updateChallengeProgress = useCallback((progress) => dispatch({ type: 'UPDATE_CHALLENGE_PROGRESS', payload: progress }), []);
+
+  const completeDailyChallenge = useCallback(() => {
+    if (!state.dailyChallenge || state.dailyChallenge.completed) return;
+    dispatch({ type: 'COMPLETE_DAILY_CHALLENGE' });
+    const xpGain = getEffectiveXp(state.dailyChallenge.reward.xp);
+    dispatch({ type: 'ADD_XP', payload: xpGain });
+    dispatch({ type: 'ADD_COINS', payload: state.dailyChallenge.reward.coins });
+    checkAchievements(state.xp + xpGain, { ...state, coins: state.coins + state.dailyChallenge.reward.coins });
+  }, [state.dailyChallenge, state.xp, state.coins, getEffectiveXp]);
+
+  // --- Time Tracking ---
+  const startTimeTracking = useCallback((taskId) => {
+    dispatch({ type: 'START_TIME_ENTRY', payload: { id: Date.now().toString(), taskId, startTime: Date.now() } });
   }, []);
 
-  const togglePunishment = useCallback(() => {
-    dispatch({ type: 'TOGGLE_PUNISHMENT' });
-  }, []);
+  const stopTimeTracking = useCallback(() => {
+    if (!state.activeTimeEntry) return;
+    const entry = { ...state.activeTimeEntry, endTime: Date.now(), duration: Date.now() - state.activeTimeEntry.startTime };
+    dispatch({ type: 'STOP_TIME_ENTRY', payload: entry });
+    const todo = state.todos.find(t => t.id === entry.taskId);
+    if (todo) {
+      dispatch({ type: 'UPDATE_TODO', payload: { id: entry.taskId, timeSpent: (todo.timeSpent || 0) + entry.duration } });
+    }
+    return entry;
+  }, [state.activeTimeEntry, state.todos]);
 
+  const clearTimeEntry = useCallback(() => dispatch({ type: 'CLEAR_TIME_ENTRY' }), []);
+
+  // --- Shop ---
+  const purchaseShopItem = useCallback((itemId) => {
+    const item = SHOP_ITEMS.find(i => i.id === itemId);
+    if (!item || state.coins < item.price) return false;
+    dispatch({ type: 'PURCHASE_SHOP_ITEM', payload: itemId });
+    checkAchievements(state.xp, { ...state, coins: state.coins - item.price });
+    return true;
+  }, [state.coins, state.xp]);
+
+  // --- View Mode ---
+  const setViewMode = useCallback((mode) => dispatch({ type: 'SET_VIEW_MODE', payload: mode }), []);
+
+  // --- Achievement Checker ---
   const checkAchievements = (currentXp, currentState) => {
     const level = getLevel(currentXp);
     if (level.level >= 5) dispatch({ type: 'UNLOCK_ACHIEVEMENT', payload: 'level_5' });
@@ -444,8 +563,16 @@ export function AppProvider({ children }) {
     if (currentState.coins >= 500) dispatch({ type: 'UNLOCK_ACHIEVEMENT', payload: 'rich' });
     if (currentState.pomodoroSessions >= 5) dispatch({ type: 'UNLOCK_ACHIEVEMENT', payload: 'pomodoro_5' });
     if (currentState.pomodoroSessions >= 25) dispatch({ type: 'UNLOCK_ACHIEVEMENT', payload: 'pomodoro_25' });
+    if (currentState.challengesCompleted?.length >= 1) dispatch({ type: 'UNLOCK_ACHIEVEMENT', payload: 'first_challenge' });
+    if (currentState.challengesCompleted?.length >= 5) dispatch({ type: 'UNLOCK_ACHIEVEMENT', payload: 'five_challenges' });
+    if (currentState.unlockedShopItems?.length >= 1) dispatch({ type: 'UNLOCK_ACHIEVEMENT', payload: 'shop_first' });
+    const totalTime = currentState.timeEntries?.reduce((sum, e) => sum + (e.duration || 0), 0) || 0;
+    if (totalTime >= 36000000) dispatch({ type: 'UNLOCK_ACHIEVEMENT', payload: 'time_10h' });
+    if (currentState.kanbanMoved >= 10) dispatch({ type: 'UNLOCK_ACHIEVEMENT', payload: 'kanban_user' });
+    if (currentState.tagsApplied >= 20) dispatch({ type: 'UNLOCK_ACHIEVEMENT', payload: 'tagger' });
   };
 
+  // --- Stats ---
   const getTodoStats = useCallback(() => {
     const total = state.todos.length;
     const completed = state.todos.filter(t => t.completed).length;
@@ -460,20 +587,42 @@ export function AppProvider({ children }) {
     return { total, completedToday };
   }, [state.habits]);
 
-  const getUpcomingCountdowns = useCallback(() => {
-    return state.countdowns
-      .filter(c => new Date(c.targetDate) >= new Date())
-      .sort((a, b) => new Date(a.targetDate) - new Date(b.targetDate))
-      .slice(0, 3);
-  }, [state.countdowns]);
+  const getUpcomingCountdowns = useCallback(() => state.countdowns.filter(c => new Date(c.targetDate) >= new Date()).sort((a, b) => new Date(a.targetDate) - new Date(b.targetDate)).slice(0, 3), [state.countdowns]);
 
-  const getTodosForDate = useCallback((dateStr) => {
-    return state.todos.filter(t => {
-      if (!t.dueDate) return false;
-      const todoDate = new Date(t.dueDate).toISOString().split('T')[0];
-      return todoDate === dateStr;
+  const getTodosForDate = useCallback((dateStr) => state.todos.filter(t => { if (!t.dueDate) return false; return new Date(t.dueDate).toISOString().split('T')[0] === dateStr; }), [state.todos]);
+
+  const getHeatmapData = useCallback(() => {
+    const data = {};
+    const today = new Date();
+    for (let i = 0; i < 365; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const key = d.toISOString().split('T')[0];
+      data[key] = 0;
+    }
+    state.todos.forEach(t => {
+      if (t.completedAt) {
+        const key = new Date(t.completedAt).toISOString().split('T')[0];
+        if (data[key] !== undefined) data[key]++;
+      }
     });
-  }, [state.todos]);
+    state.habits.forEach(h => {
+      h.completedDates?.forEach(d => {
+        if (data[d] !== undefined) data[d]++;
+      });
+    });
+    state.notes.forEach(n => {
+      const key = new Date(n.createdAt).toISOString().split('T')[0];
+      if (data[key] !== undefined) data[key]++;
+    });
+    return data;
+  }, [state.todos, state.habits, state.notes]);
+
+  const getTotalTimeTracked = useCallback(() => state.timeEntries.reduce((sum, e) => sum + (e.duration || 0), 0), [state.timeEntries]);
+
+  const addMoodEntry = useCallback((entry) => {
+    dispatch({ type: 'ADD_MOOD_ENTRY', payload: entry });
+  }, []);
 
   const searchAll = useCallback((query) => {
     const q = query.toLowerCase();
@@ -485,49 +634,27 @@ export function AppProvider({ children }) {
     };
   }, [state.todos, state.habits, state.notes, state.countdowns]);
 
-  const exportData = useCallback(() => {
-    return {
-      todos: state.todos,
-      habits: state.habits,
-      countdowns: state.countdowns,
-      notes: state.notes,
-      xp: state.xp,
-      coins: state.coins,
-      achievements: state.achievements,
-      exportedAt: new Date().toISOString(),
-    };
-  }, [state]);
+  const exportData = useCallback(() => ({
+    todos: state.todos, habits: state.habits, countdowns: state.countdowns, notes: state.notes,
+    xp: state.xp, coins: state.coins, achievements: state.achievements, exportedAt: new Date().toISOString(),
+  }), [state]);
 
   const value = {
-    state,
-    dispatch,
-    addTodo,
-    updateTodo,
-    deleteTodo,
-    toggleTodo,
-    addSubtask,
-    toggleSubtask,
-    deleteSubtask,
-    addHabit,
-    toggleHabitDate,
-    deleteHabit,
-    updateHabit,
-    addCountdown,
-    updateCountdown,
-    deleteCountdown,
-    addNote,
-    updateNote,
-    deleteNote,
-    completePomodoro,
-    applyPunishment,
-    togglePunishment,
-    getTodoStats,
-    getHabitStats,
-    getUpcomingCountdowns,
-    getTodosForDate,
-    searchAll,
-    exportData,
-    getLevel,
+    state, dispatch,
+    addTodo, updateTodo, deleteTodo, toggleTodo, setTodoStatus,
+    addSubtask, toggleSubtask, deleteSubtask,
+    addTag, deleteTag, assignTag, removeTagFromTask,
+    addHabit, toggleHabitDate, deleteHabit, updateHabit,
+    addCountdown, updateCountdown, deleteCountdown,
+    addNote, updateNote, deleteNote,
+    completePomodoro, applyPunishment, togglePunishment,
+    updateChallengeProgress, completeDailyChallenge,
+    startTimeTracking, stopTimeTracking, clearTimeEntry,
+    purchaseShopItem, setViewMode,
+    getTodoStats, getHabitStats, getUpcomingCountdowns, getTodosForDate,
+    getHeatmapData, getTotalTimeTracked,
+    addMoodEntry,
+    searchAll, exportData, getLevel,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
@@ -539,4 +666,4 @@ export function useApp() {
   return context;
 }
 
-export { getLevel, LEVELS };
+export { getLevel, LEVELS, SHOP_ITEMS };
